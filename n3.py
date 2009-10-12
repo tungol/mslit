@@ -11,11 +11,11 @@ def combine_zeros():
 
 def combine_flat1():
 	iraf.flatcombine.unlearn()
-	iraf.flatcombine(input="@lists/flat1", output="Flat1")
+	iraf.flatcombine(input="@lists/flat1", output="Flat1", process="no")
 
 def combine_flat2():
 	iraf.flatcombine.unlearn()
-	iraf.flatcombine(input="@lists/flat2", output="Flat2")
+	iraf.flatcombine(input="@lists/flat2", output="Flat2", process="no")
 
 def main():
 	os.chdir(LOCATION)
