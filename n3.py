@@ -19,7 +19,7 @@ def combine_flat2():
 
 def ccdproc_ngc4725():
 	iraf.ccdproc.unlearn()
-	iraf.ccdproc.(images="@lists/ngc4725", fixpix="no", darkcor="no", biassec="[2049:2080,1:501]", trimsec="[1:2048,1:501]", zero="Zero.fits", flat="Flat2.fits", 
+	iraf.ccdproc(images="@lists/ngc4725", fixpix="no", darkcor="no", biassec="[2049:2080,1:501]", trimsec="[1:2048,1:501]", zero="Zero.fits", flat="Flat2.fits")
 
 def main():
 	os.chdir(LOCATION)
