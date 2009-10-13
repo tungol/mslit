@@ -21,6 +21,10 @@ def ccdproc_ngc4725():
 	iraf.ccdproc.unlearn()
 	iraf.ccdproc(images="@lists/ngc4725", fixpix="no", darkcor="no", biassec="[2049:2080,1:501]", trimsec="[1:2048,1:501]", zero="Zero.fits", flat="Flat2.fits")
 
+def combine_ngc4725():
+	iraf.combine.unlearn()
+	iraf.combine(input="@lists/ngc4725", output="ngc4725")
+
 def main():
 	os.chdir(LOCATION)
 	iraf.noao(_doprint=0)
@@ -29,6 +33,7 @@ def main():
 #	combine_zeros()
 #	combine_flat1()
 #	combine_flat2()
-	ccdproc_ngc4725()
+#	ccdproc_ngc4725()
+	combine_ngc4725()
 
 main()
