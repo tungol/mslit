@@ -35,8 +35,5 @@ def main():
 #	combine_flat2()
 #	ccdproc_ngc4725()
 #	combine_ngc4725()
-#	generate_ngc4725_geomap_input()
-#	ngc4725_geomap()
-#	ngc4725_geotran()
 
 main()
