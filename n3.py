@@ -62,7 +62,7 @@ def avg(*args):
 	floatNums = [float(x) for x in args]
 	return sum(floatNums) / len(args)
 
-def geomap_ngc4735():
+def geomap_ngc4725():
 	iraf.geomap.unlearn()
 	iraf.geomap(input="input/ngc4725_cood.geomap", database="input/ngc4725.trans", interact="no")
 
