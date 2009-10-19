@@ -25,6 +25,30 @@ def combine_ngc4725():
 	iraf.combine.unlearn()
 	iraf.combine(input="@lists/ngc4725", output="ngc4725")
 
+def tilt_ngc4725():
+	json_file = open('input/ngc4725_cood.json', 'r')
+	cood = json.load(json_file)
+	json_file.close()
+	columns = cood.keys()
+	column1 = columns[0]
+	column2 = columns[1]
+	list1 = cood[column1]
+	list2 = cood[column2]
+	midpoint = avg(column1, column2)
+	run = midpoint - float(column1)
+	for i in range(len(list1)):
+		start1 = list1[i]["start"]
+		end1 = list1[i]["end"]
+		start2 = list2[i]["start"]
+		end2 = list2[i]["end"]
+		mid1 = avg(start1, end1)
+		mid2 = avg(start2, end2)
+		mid3 = avg(mid1, mid2)
+		rise = mid3 - mid1
+		angle = math.atan(rise, run)
+		iraf.geotran.unlearn()
+		iraf.geotran("input = "ngc47225.fits", output = "ngc4725/rotate%s.fits" % i, database = "INDEF", transforms = "INDEF", xrotation = angle, yrotation = angle)
+
 def main():
 	os.chdir(LOCATION)
 	iraf.noao(_doprint=0)
@@ -35,5 +59,6 @@ def main():
 #	combine_flat2()
 #	ccdproc_ngc4725()
 #	combine_ngc4725()
+	tilt_ngc4725()
 
 main()
