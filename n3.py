@@ -64,7 +64,11 @@ def avg(*args):
 
 def geomap_ngc4725():
 	iraf.geomap.unlearn()
-	iraf.geomap(input="input/ngc4725_cood.geomap", database="input/ngc4725.trans", interact="no")
+	iraf.geomap(input="input/ngc4725_cood.geomap", database="input/ngc4725.trans", interact="no", )
+
+def geotran_ngc4725():
+	iraf.geotran.unlearn()
+	iraf.geotran(input = "ngc4725.fits", ouput = "ngc4725t.fits", database ="input/ngc4725.trans", transforms = "input/ngc4725_cood.geomap")
 
 def main():
 	os.chdir(LOCATION)
@@ -77,7 +81,7 @@ def main():
 #	ccdproc_ngc4725()
 #	combine_ngc4725()
 #	generate_ngc4725_geomap_input()
-	geomap_ngc4725()
-#	ngc4725_geotran()
+#	geomap_ngc4725()
+	geotran_ngc4725()
 
 main()
