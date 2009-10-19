@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import sys, os
+import sys, os, json
 from pyraf import iraf
 
 LOCATION="../n3/"
@@ -35,33 +35,32 @@ def generate_ngc4725_geomap_input():
 def generate_geomap_input(cood, save):
 	geomap_input = ""
 	columns = cood.keys()
-	for i in range(len(columns) - 1):
-		column1 = columns[i]
-		column2 = columns[i + 1]
-		list1 = cood[column1]
-		list2 = cood[column2]
-		midpoint = avg(column1, column2)
-		for j in range(len(list1)):
-			start1 = list1[j]["start"]
-			start2 = list2[j]["start"]
-			end1 = list1[j]["end"]
-			end2 = list2[j]["end"]
-			avg_start = avg(start1, start2)
-			avg_end = avg(end1, end2)
-			geomap_input.append("%s %s %s %s\n" %
-				(column1, start1, column1, avg_start))
-			geomap_input.append("%s %s %s %s\n" %
-				(column1, end1, column1, avg_end))
-			geomap_input.append("%s %s %s %s\n" %
-				(column2, start2, column2, avg_start))
-			geomap_input.append("%s %s %s %s\n" %
-				(column2, end2, column2, avg_end))
+	column1 = columns[0]
+	column2 = columns[1]
+	list1 = cood[column1]
+	list2 = cood[column2]
+	midpoint = avg(column1, column2)
+	for i in range(len(list1)):
+		start1 = list1[i]["start"]
+		start2 = list2[i]["start"]
+		end1 = list1[i]["end"]
+		end2 = list2[i]["end"]
+		avg_start = avg(start1, start2)
+		avg_end = avg(end1, end2)
+		geomap_input += ("%s %s %s %s\n" %
+			(column1, start1, column1, avg_start))
+		geomap_input += ("%s %s %s %s\n" %
+			(column1, end1, column1, avg_end))
+		geomap_input += ("%s %s %s %s\n" %
+			(column2, start2, column2, avg_start))
+		geomap_input += ("%s %s %s %s\n" %
+			(column2, end2, column2, avg_end))
 	geomap_input = geomap_input[:-1] #remove trailing newline
 	save.write(geomap_input)
 
 def avg(*args):
 	floatNums = [float(x) for x in args]
-	return sum(floatNums) / len(numberList)
+	return sum(floatNums) / len(args)
 
 def main():
 	os.chdir(LOCATION)
