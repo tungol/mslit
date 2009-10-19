@@ -48,13 +48,13 @@ def generate_geomap_input(cood, save):
 		avg_start = avg(start1, start2)
 		avg_end = avg(end1, end2)
 		geomap_input += ("%s %s %s %s\n" %
-			(column1, start1, column1, avg_start))
+			(column1, avg_start, column1, start1))
 		geomap_input += ("%s %s %s %s\n" %
-			(column1, end1, column1, avg_end))
+			(column1, avg_end, column1, end1))
 		geomap_input += ("%s %s %s %s\n" %
-			(column2, start2, column2, avg_start))
+			(column2, avg_start, column2, start2))
 		geomap_input += ("%s %s %s %s\n" %
-			(column2, end2, column2, avg_end))
+			(column2, avg_end, column2, end2))
 	geomap_input = geomap_input[:-1] #remove trailing newline
 	save.write(geomap_input)
 
@@ -64,11 +64,11 @@ def avg(*args):
 
 def geomap_ngc4725():
 	iraf.geomap.unlearn()
-	iraf.geomap(input="input/ngc4725_cood.geomap", database="input/ngc4725.trans", interact="no", )
+	iraf.geomap(input="input/ngc4725_cood.geomap", database="input/ngc4725.trans", interactive="no", xxorder = "2", xyorder = "2", xxterms = "full", yxorder = "2", yyorder = "2", yxterms = "full")
 
 def geotran_ngc4725():
 	iraf.geotran.unlearn()
-	iraf.geotran(input = "ngc4725.fits", ouput = "ngc4725t.fits", database ="input/ngc4725.trans", transforms = "input/ngc4725_cood.geomap")
+	iraf.geotran(input = "ngc4725.fits", output = "ngc4725t.fits", database ="input/ngc4725.trans", transforms = "input/ngc4725_cood.geomap")
 
 def main():
 	os.chdir(LOCATION)
@@ -80,8 +80,8 @@ def main():
 #	combine_flat2()
 #	ccdproc_ngc4725()
 #	combine_ngc4725()
-#	generate_ngc4725_geomap_input()
-#	geomap_ngc4725()
+	generate_ngc4725_geomap_input()
+	geomap_ngc4725()
 	geotran_ngc4725()
 
 main()
