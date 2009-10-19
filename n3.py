@@ -25,6 +25,44 @@ def combine_ngc4725():
 	iraf.combine.unlearn()
 	iraf.combine(input="@lists/ngc4725", output="ngc4725")
 
+def generate_ngc4725_geomap_input():
+	json_file = open("input/ngc4725_cood.json", 'r')
+	cood = json.load(json_file)
+	save = open("input/ngc4725_cood.geomap", "w")
+	generate_geomap_input(cood, save)
+	save.close()
+
+def generate_geomap_input(cood, save):
+	geomap_input = ""
+	columns = cood.keys()
+	for i in range(len(columns) - 1):
+		column1 = columns[i]
+		column2 = columns[i + 1]
+		list1 = cood[column1]
+		list2 = cood[column2]
+		midpoint = avg(column1, column2)
+		for j in range(len(list1)):
+			start1 = list1[j]["start"]
+			start2 = list2[j]["start"]
+			end1 = list1[j]["end"]
+			end2 = list2[j]["end"]
+			avg_start = avg(start1, start2)
+			avg_end = avg(end1, end2)
+			geomap_input.append("%s %s %s %s\n" %
+				(column1, start1, column1, avg_start))
+			geomap_input.append("%s %s %s %s\n" %
+				(column1, end1, column1, avg_end))
+			geomap_input.append("%s %s %s %s\n" %
+				(column2, start2, column2, avg_start))
+			geomap_input.append("%s %s %s %s\n" %
+				(column2, end2, column2, avg_end))
+	geomap_input = geomap_input[:-1] #remove trailing newline
+	save.write(geomap_input)
+
+def avg(*args):
+	floatNums = [float(x) for x in args]
+	return sum(floatNums) / len(numberList)
+
 def main():
 	os.chdir(LOCATION)
 	iraf.noao(_doprint=0)
@@ -35,7 +73,7 @@ def main():
 #	combine_flat2()
 #	ccdproc_ngc4725()
 #	combine_ngc4725()
-#	generate_ngc4725_geomap_input()
+	generate_ngc4725_geomap_input()
 #	ngc4725_geomap()
 #	ngc4725_geotran()
 
