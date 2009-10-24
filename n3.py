@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
-import sys, os, json, math
+import sys, os, math
+import simplejson as json
 from pyraf import iraf
 
 LOCATION="../n3/"
