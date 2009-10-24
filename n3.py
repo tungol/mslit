@@ -1,9 +1,13 @@
 #! /usr/bin/env python
 
-import sys, os
+import sys, os, json, math
 from pyraf import iraf
 
 LOCATION="../n3/"
+
+def avg(*args):
+	floatNums = [float(x) for x in args]
+	return sum(floatNums) / len(args)
 
 def combine_zeros():
 	iraf.zerocombine.unlearn()
@@ -44,10 +48,12 @@ def tilt_ngc4725():
 		mid1 = avg(start1, end1)
 		mid2 = avg(start2, end2)
 		mid3 = avg(mid1, mid2)
-		rise = mid3 - mid1
-		angle = math.atan(rise, run)
+		rise = mid1 - mid3
+		slope = float(rise) / float(run)
+		angle = math.atan(slope)
+		print angle
 		iraf.geotran.unlearn()
-		iraf.geotran("input = "ngc47225.fits", output = "ngc4725/rotate%s.fits" % i, database = "INDEF", transforms = "INDEF", xrotation = angle, yrotation = angle)
+		iraf.geotran(input = "ngc4725.fits", output = ("ngc4725/rotate%s.fits" % i), database = "", xrotation = -angle, yrotation = -angle)
 
 def main():
 	os.chdir(LOCATION)
