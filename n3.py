@@ -40,7 +40,7 @@ def tilt_ngc4725():
 	list1 = cood[column1]
 	list2 = cood[column2]
 	midpoint = avg(column1, column2)
-	run = midpoint - float(column1)
+	run = float(column2) - float(column1)
 	for i in range(len(list1)):
 		start1 = list1[i]["start"]
 		end1 = list1[i]["end"]
@@ -49,12 +49,10 @@ def tilt_ngc4725():
 		mid1 = avg(start1, end1)
 		mid2 = avg(start2, end2)
 		mid3 = avg(mid1, mid2)
-		rise = mid1 - mid3
+		rise = mid1 - mid2
 		slope = float(rise) / float(run)
-		angle = math.atan(slope)
-		print angle
-		iraf.geotran.unlearn()
-		iraf.geotran(input = "ngc4725.fits", output = ("ngc4725/rotate%s.fits" % i), database = "", xrotation = -angle, yrotation = -angle)
+		angle = math.degrees(math.atan(slope))
+		iraf.rotate(input="ngc4725.fits", output="ngc4725/rotate%s.fits" % i, rotation = angle)
 
 def main():
 	os.chdir(LOCATION)
@@ -66,6 +64,8 @@ def main():
 #	combine_flat2()
 #	ccdproc_ngc4725()
 #	combine_ngc4725()
+	iraf.images(_doprint=0)
+	iraf.imgeom(_doprint=0)
 	tilt_ngc4725()
 
 main()

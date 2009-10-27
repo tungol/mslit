@@ -3,7 +3,8 @@
 #script for transforming plaintext list of image coordinates into json, for use
 #in geomap things
 
-import sys, os, json
+import sys, os
+import simplejson as json
 
 def main(args):
 	json_file_name = args.pop()
