@@ -15,6 +15,11 @@ def load_imgeom():
 	iraf.images(_doprint=0)
 	iraf.imgeom(_doprint=0)
 
+def load_apextract():
+	iraf.noao(_doprint=0)
+	iraf.twodspec(_doprint=0)
+	iraf.apextract(_doprint=0)
+
 def zerocombine(input, **kwargs):
 	load_ccdred()
 	iraf.zerocombine.unlearn()
@@ -93,3 +98,15 @@ def imcopy(input, output, section, **kwargs):
 	iraf.imcopy.unlearn()
 	tmp = input + section
 	iraf.imcopy(input=tmp, output=output, **kwargs)
+
+def slice_galaxy(name, comp):
+	cood_data = coodproc('input/%s_cood.json' % name)
+	for i in range(len(cood_data)):
+		rotate("%s/base" % name, '%s/r%s' % (name, i),
+			cood_data[i]['angle'])
+		rotate(comp, '%s/rc%s' % (name, i),
+			cood_data[i]['angle'])
+		imcopy('%s/r%s' % (name, i), '%s/s%s' % (name, i),
+			cood_data[i]['section'])
+		imcopy('%s/rc%s' % (name, i), '%s/sc%s' % (name, i),
+			cood_data[i]['section'])
