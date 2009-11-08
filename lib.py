@@ -1,4 +1,4 @@
-import math
+import math, os
 import simplejson as json
 from pyraf import iraf
 
@@ -19,6 +19,10 @@ def load_apextract():
 	iraf.noao(_doprint=0)
 	iraf.twodspec(_doprint=0)
 	iraf.apextract(_doprint=0)
+
+def load_onedspec():
+	iraf.noao(_doprint=0)
+	iraf.onedspec(_doprint=0)
 
 def zerocombine(input, **kwargs):
 	load_ccdred()
@@ -99,8 +103,10 @@ def imcopy(input, output, section, **kwargs):
 	tmp = input + section
 	iraf.imcopy(input=tmp, output=output, **kwargs)
 
-def slice_galaxy(name, comp):
+def rotate_galaxy(name, comp):
 	cood_data = coodproc('input/%s_cood.json' % name)
+	os.chdir(name)
+	comp = '../' + comp
 	for i in range(len(cood_data)):
 		if i < 10:
 			si = "00%s" % i
@@ -108,25 +114,102 @@ def slice_galaxy(name, comp):
 			si = '0%s' % i
 		else:
 			si = '%s' % i
-		rotate("%s/base" % name, '%s/r%s' % (name, si),
-			cood_data[i]['angle'])
-		rotate(comp, '%s/r%sc' % (name, si),
-			cood_data[i]['angle'])
-		imcopy('%s/r%s' % (name, si), '%s/s%s' % (name, si),
-			cood_data[i]['section'])
-		imcopy('%s/r%sc' % (name, si), '%s/s%sc' % (name, si),
-			cood_data[i]['section'])
-		apsum('%s/s%s' % (name, si), '%s/%s.1d' % (name, si),
-			cood_data[i]['section'])
-		apsum('%s/s%sc' % (name, si), '%s/%sc.1d' % (name, si),
-			cood_data[i]['section'])
+		rotate("base", 'r%s' % si, cood_data[i]['angle'])
+		rotate(comp, 'r%sc' % si, cood_data[i]['angle'])
+	os.chdir('..')
+
+def imcopy_galaxy(name):
+	cood_data = coodproc('input/%s_cood.json' % name)
+	os.chdir(name)
+	for i in range(len(cood_data)):
+		if i < 10:
+			si = "00%s" % i
+		elif i < 100:
+			si = '0%s' % i
+		else:
+			si = '%s' % i
+		imcopy('r%s' % si, 's%s' % si, cood_data[i]['section'])
+		imcopy('r%sc' % si, 's%sc' % si, cood_data[i]['section'])
+	os.chdir('..')
+
+def apsum_galaxy(name):
+	cood_data = coodproc('input/%s_cood.json' % name)
+	os.chdir(name)
+	for i in range(len(cood_data)):
+		if i < 10:
+			si = "00%s" % i
+		elif i < 100:
+			si = '0%s' % i
+		else:
+			si = '%s' % i
+		apsum('s%s' % si, '%s.1d' % si, cood_data[i]['section'])
+		apsum('s%sc' % si, '%sc.1d' % si, cood_data[i]['section'])
+	os.chdir('..')
+
+def reidentify_galaxy(name, reference):
+	cood_data = coodproc('input/%s_cood.json' % name)
+	os.chdir(name)
+	for i in range(len(cood_data)):
+		if i < 10:
+			si = "00%s" % i
+		elif i < 100:
+			si = '0%s' % i
+		else:
+			si = '%s' % i
+		reidentify(reference, '%sc.1d.0001' % si)
+	os.chdir('..')
+
+def hedit_galaxy(name):
+	cood_data = coodproc('input/%s_cood.json' % name)
+	os.chdir(name)
+	for i in range(len(cood_data)):
+		if i < 10:
+			si = "00%s" % i
+		elif i < 100:
+			si = '0%s' % i
+		else:
+			si = '%s' % i
+		hedit('%s.1d.0001' % si, 'REFSPEC1', '%sc.1d.0001' % si)
+	os.chdir('..')
+
+def dispcor_galaxy(name):
+	cood_data = coodproc('input/%s_cood.json' % name)
+	os.chdir(name)
+	for i in range(len(cood_data)):
+		if i < 10:
+			si = "00%s" % i
+		elif i < 100:
+			si = '0%s' % i
+		else:
+			si = '%s' % i
+		dispcor('%s.1d.0001' % si, 'd%s.1d.0001' % si)
+	os.chdir('..')
+
+def dispcor(input, output, **kwargs):
+	load_onedspec()
+	iraf.dispcor.unlearn()
+	iraf.dispcor(input=input, output=output, **kwargs)
+
+def hedit(images, fields, value, **kwargs):
+	kwargs.setdefault('add', 'yes')
+	kwargs.setdefault('verify', 'no')
+	iraf.hedit.unlearn()
+	iraf.hedit(images=images, fields=fields, value=value, **kwargs)
 	
+def reidentify(reference, images, **kwargs):
+	load_onedspec()
+	kwargs.setdefault('verbose', 'yes')
+	kwargs.setdefault('interactive', 'no')
+	kwargs.setdefault('shift', 'INDEF')
+	kwargs.setdefault('search', 'INDEF')
+	iraf.reidentify.unlearn()
+	iraf.reidentify(reference=reference, images=images, **kwargs)
 
 def set_aperture(input, section):
 	(row, column) = section[1:-1].split(',')
 	(left, right) = row.split(':')
 	(down, up) = column.split(':')
-	center = (float(up) - float(down)) / 2.
+	center = (float(up) - float(down) + 1) / 2.
 	rup = center
 	rdown = -center
 	tmp = []
@@ -156,6 +239,8 @@ def set_aperture(input, section):
 	tmp.append('\t\t2048.\n')
 	tmp.append('\t\t0.\n')
 	tmp.append('\n')
+	if not os.path.isdir('./database'):
+		os.mkdir('./database')
 	file = open('./database/ap%s' % input.replace('/', '_'), 'w')
 	file.writelines(tmp)
 
