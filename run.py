@@ -14,11 +14,11 @@ def n3():
 	if not os.path.isdir('./ngc4725'):
 		os.mkdir('./ngc4725')
 	#combine("@lists/ngc4725", "ngc4725/base")
-#after noting down slice begins/ends
+	#after noting down slice begins/ends
 	#rotate_galaxy('ngc4725', 'cghn30030')
 	#imcopy_galaxy('ngc4725')
 	#apsum_galaxy('ngc4725')
-# did a manual identify on 16c, manual reidentify on the other comps
+	# did a manual identify on 16c, manual reidentify on the other comps
 	#hedit_galaxy('ngc4725')
 	#dispcor_galaxy('ngc4725')
 #ngc3169
@@ -30,6 +30,10 @@ def n3():
 	#rotate_galaxy('ngc3169', 'cghn30022')
 	#imcopy_galaxy('ngc3169')
 	#apsum_galaxy('ngc3169')
+	#reidentified 000c.1d.001 using ngc4725/016c.1d.001
+	#reidentified remaning comps using 000c.1d.001
+	hedit_galaxy('ngc3169')
+	dispcor_galaxy('ngc3169')
 
 def n6():
 	location = '../n6'
