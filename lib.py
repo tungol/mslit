@@ -185,6 +185,21 @@ def dispcor_galaxy(name):
 		dispcor('%s.1d.0001' % si, 'd%s.1d.0001' % si)
 	os.chdir('..')
 
+def sarith_galaxy(name, sky)
+	cood_data = coodproc('input/%s_cood.json' % name)
+	os.chdir(name)
+	for i in range(len(cood_data)):
+		si = zerocount(i)
+		sarith('d%s.1d.0001' % si, '-', sky, 'ds%s.1d.0001' % si)
+
+zerocount(i):
+	if i < 10:
+		return "00%s" % i
+	elif i < 100:
+		return '0%s' % i
+	else:
+		return '%s' % i
+
 def dispcor(input, output, **kwargs):
 	load_onedspec()
 	iraf.dispcor.unlearn()
@@ -254,3 +269,9 @@ def apsum(input, output, section, **kwargs):
 	kwargs.setdefault('fittrace', 'no')
 	iraf.apsum.unlearn()
 	iraf.apsum(input=input, output=output, **kwargs)
+
+def sarith(input1, op, input2, output, **kwargs)
+	load_onedspec()
+	iraf.sarith.unlearn()
+	iraf.sarith(input1=input1, op=op, input2=input2, output=output, 
+		**kwargs)
