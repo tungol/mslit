@@ -24,6 +24,13 @@ def load_onedspec():
 	iraf.noao(_doprint=0)
 	iraf.onedspec(_doprint=0)
 
+def load_kpnoslit():
+	iraf.imred(_doprint=0)
+	iraf.kpnoslit(_doprint=0)
+
+def load_astutil():
+	iraf.astutil(_doprint=0)
+
 def zerocombine(input, **kwargs):
 	load_ccdred()
 	iraf.zerocombine.unlearn()
@@ -185,20 +192,32 @@ def dispcor_galaxy(name):
 		dispcor('%s.1d.0001' % si, 'd%s.1d.0001' % si)
 	os.chdir('..')
 
-def sarith_galaxy(name, sky)
+def sarith_galaxy(name, sky):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
 		si = zerocount(i)
 		sarith('d%s.1d.0001' % si, '-', sky, 'ds%s.1d.0001' % si)
 
-zerocount(i):
+def calibrate_galaxy(name, sens):
+	cood_data = coodproc('input/%s_cood.json' % name)
+	os.chdir(name)
+	for i in range(len(cood_data)):
+		si = zerocount(i)
+		calibrate('ds%s.1d.0001' % si, sens, 'dsc%s.1d.0001' % si)
+
+def zerocount(i):
 	if i < 10:
 		return "00%s" % i
 	elif i < 100:
 		return '0%s' % i
 	else:
 		return '%s' % i
+
+def calibrate(input, sens, output, **kwargs):
+	load_kpnoslit()
+	iraf.calibrate.unlearn()
+	iraf.calibrate(input=input, output=output, sens=sens, **kwargs)
 
 def dispcor(input, output, **kwargs):
 	load_onedspec()
@@ -270,8 +289,13 @@ def apsum(input, output, section, **kwargs):
 	iraf.apsum.unlearn()
 	iraf.apsum(input=input, output=output, **kwargs)
 
-def sarith(input1, op, input2, output, **kwargs)
+def sarith(input1, op, input2, output, **kwargs):
 	load_onedspec()
 	iraf.sarith.unlearn()
 	iraf.sarith(input1=input1, op=op, input2=input2, output=output, 
 		**kwargs)
+
+def setairmass(name, **kwargs):
+	load_astutil()
+	iraf.setairmass.unlearn()
+	iraf.setairmass(images=name, **kwargs)

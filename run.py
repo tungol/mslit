@@ -1,4 +1,4 @@
-import sys, os, math
+import sys, os, math, subprocess
 import simplejson as json
 from pyraf import iraf
 from lib import *
@@ -32,8 +32,25 @@ def n3():
 	#apsum_galaxy('ngc3169')
 	#reidentified 000c.1d.001 using ngc4725/016c.1d.001
 	#reidentified remaning comps using 000c.1d.001
-	hedit_galaxy('ngc3169')
-	dispcor_galaxy('ngc3169')
+	#hedit_galaxy('ngc3169')
+	#dispcor_galaxy('ngc3169')
+#flux correction (feige34)
+	#ccdproc('cghn30017', zero="Zero", flat='Flat1')
+	#os.mkdir('./feige34')
+	#subprocess.call(['cp', 'cghn30017.fits', './feige34/base.fits'])
+	#rotate_galaxy('feige34', 'cghn30022')
+	#imcopy_galaxy('feige34')
+	#apsum_galaxy('feige34')
+	#manually ran identify
+	#hedit_galaxy('feige34')
+	#dispcor_galaxy('feige34')
+	#then run standard and sensfunc manually
+#flux calibration and sky subtraction
+	sky = '../ngc3169/d013.1d.0001'
+	sens = '../feige34/feige34.sens'
+	sarith_galaxy('ngc3169', sky)
+	calibrate_galaxy('ngc3169', sens)
+	
 
 def n6():
 	location = '../n6'
