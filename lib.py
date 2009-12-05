@@ -61,10 +61,11 @@ def coodproc(cood_fn):
 	cood = json.load(cood_file)
 	cood_file.close()
 	angles = get_angles(cood)
-	sections = get_sections(cood)
+	sections, size = get_sections(cood)
 	tmp = []
 	for i in range(len(angles)):
-		tmp.append({'angle':angles[i], 'section':sections[i]})
+		tmp.append({'angle':angles[i], 'section':sections[i], 
+			'size':size[i]})
 	return tmp
 
 def get_sections(cood):
@@ -72,6 +73,7 @@ def get_sections(cood):
 	list1 = cood[columns[0]]
 	list2 = cood[columns[1]]
 	sections = []
+	size = []
 	for i in range(len(list1)):
 		start1 = list1[i]['start']
 		end1 = list1[i]['end']
@@ -80,7 +82,8 @@ def get_sections(cood):
 		start = int(round(avg(start1, start2)))
 		end = int(round(avg(end1, end2)))
 		sections.append('[1:2048,%s:%s]' % (start, end))
-	return sections
+		size.append(end - start)
+	return sections, size
 
 def get_angles(cood):
 	columns = cood.keys()
@@ -115,12 +118,7 @@ def rotate_galaxy(name, comp):
 	os.chdir(name)
 	comp = '../' + comp
 	for i in range(len(cood_data)):
-		if i < 10:
-			si = "00%s" % i
-		elif i < 100:
-			si = '0%s' % i
-		else:
-			si = '%s' % i
+		si = zerocount(i)
 		rotate("base", 'r%s' % si, cood_data[i]['angle'])
 		rotate(comp, 'r%sc' % si, cood_data[i]['angle'])
 	os.chdir('..')
@@ -129,12 +127,7 @@ def imcopy_galaxy(name):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
-		if i < 10:
-			si = "00%s" % i
-		elif i < 100:
-			si = '0%s' % i
-		else:
-			si = '%s' % i
+		si = zerocount(i)
 		imcopy('r%s' % si, 's%s' % si, cood_data[i]['section'])
 		imcopy('r%sc' % si, 's%sc' % si, cood_data[i]['section'])
 	os.chdir('..')
@@ -143,12 +136,7 @@ def apsum_galaxy(name):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
-		if i < 10:
-			si = "00%s" % i
-		elif i < 100:
-			si = '0%s' % i
-		else:
-			si = '%s' % i
+		si = zerocount(i)
 		apsum('s%s' % si, '%s.1d' % si, cood_data[i]['section'])
 		apsum('s%sc' % si, '%sc.1d' % si, cood_data[i]['section'])
 	os.chdir('..')
@@ -157,12 +145,7 @@ def reidentify_galaxy(name, reference):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
-		if i < 10:
-			si = "00%s" % i
-		elif i < 100:
-			si = '0%s' % i
-		else:
-			si = '%s' % i
+		si = zerocount(i)
 		reidentify(reference, '%sc.1d.0001' % si)
 	os.chdir('..')
 
@@ -170,12 +153,7 @@ def hedit_galaxy(name):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
-		if i < 10:
-			si = "00%s" % i
-		elif i < 100:
-			si = '0%s' % i
-		else:
-			si = '%s' % i
+		si = zerocount(i)
 		hedit('%s.1d.0001' % si, 'REFSPEC1', '%sc.1d.0001' % si)
 	os.chdir('..')
 
@@ -183,21 +161,41 @@ def dispcor_galaxy(name):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
-		if i < 10:
-			si = "00%s" % i
-		elif i < 100:
-			si = '0%s' % i
-		else:
-			si = '%s' % i
+		si = zerocount(i)
 		dispcor('%s.1d.0001' % si, 'd%s.1d.0001' % si)
 	os.chdir('..')
 
-def sarith_galaxy(name, sky):
+def sarith_galaxy(name, sky, prefix=''):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
 		si = zerocount(i)
-		sarith('d%s.1d.0001' % si, '-', sky, 'ds%s.1d.0001' % si)
+		sarith('d%s.1d.0001' % si, '-', sky, '%sds%s.1d.0001' % (prefix, si))
+	os.chdir('..')
+
+def combine_sky_spectra(name, list, out='sky.1d', scale=False, **kwargs):
+	cood_data == coodproc('input/%s_cood.json' % name)
+	os.chdir(name)
+	if scale == True:
+		list = []
+		for spectra in list:
+			scale = cood_data[spectra]['size']
+			i = zerocount(spectra)
+			sarith('d%s.1d.0001' % i, '/', scale, 
+				'd%s.1d.scaled' % i)
+			list.append('d%s.1d.scaled' % i)
+	else:
+		list = []
+		for spectra in list:
+			list.append('d%s.1d.0001' % i)
+	scombine(list_convert(list), out, **kwargs)
+	os.chdir('..')
+
+def list_convert(list):
+	str = list.pop(0)
+	for item in list:
+		str += ', %s' % item
+	return str
 
 def calibrate_galaxy(name, sens):
 	cood_data = coodproc('input/%s_cood.json' % name)
@@ -205,6 +203,7 @@ def calibrate_galaxy(name, sens):
 	for i in range(len(cood_data)):
 		si = zerocount(i)
 		calibrate('ds%s.1d.0001' % si, sens, 'dsc%s.1d.0001' % si)
+	os.chdir('..')
 
 def zerocount(i):
 	if i < 10:
@@ -223,6 +222,11 @@ def dispcor(input, output, **kwargs):
 	load_onedspec()
 	iraf.dispcor.unlearn()
 	iraf.dispcor(input=input, output=output, **kwargs)
+
+def scombine(input, output, **kwargs)
+	load_onedspec()
+	iraf.scombine.unlearn()
+	iraf.scombine(input=input, output=output, **kwargs)
 
 def hedit(images, fields, value, **kwargs):
 	kwargs.setdefault('add', 'yes')

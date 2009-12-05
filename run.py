@@ -11,8 +11,7 @@ def n3():
 	#flatcombine("@lists/flat2", output = "Flat2")
 #ngc4725
 	#ccdproc("@lists/ngc4725", zero="Zero", flat="Flat2")
-	if not os.path.isdir('./ngc4725'):
-		os.mkdir('./ngc4725')
+	#os.mkdir('./ngc4725')
 	#combine("@lists/ngc4725", "ngc4725/base")
 	#after noting down slice begins/ends
 	#rotate_galaxy('ngc4725', 'cghn30030')
@@ -23,8 +22,7 @@ def n3():
 	#dispcor_galaxy('ngc4725')
 #ngc3169
 	#ccdproc('@lists/ngc3169', zero="Zero", flat="Flat1")
-	if not os.path.isdir('./ngc3169'):
-		os.mkdir('./ngc3169')
+	#os.mkdir('./ngc3169')
 	#combine('@lists/ngc3169', 'ngc3169/base')
 	# noted slice starts/ends
 	#rotate_galaxy('ngc3169', 'cghn30022')
@@ -46,10 +44,13 @@ def n3():
 	#dispcor_galaxy('feige34')
 	#then run standard and sensfunc manually
 #flux calibration and sky subtraction
-	sky = '../ngc3169/d013.1d.0001'
-	sens = '../feige34/feige34.sens'
-	sarith_galaxy('ngc3169', sky)
-	calibrate_galaxy('ngc3169', sens)
+	#sky = '../ngc3169/sky.average.1d'
+	#sens = '../feige34/feige34.sens'
+	sky_list = [0, 2, 3, 6, 17, 18, 24]
+	combine_sky_spectra('3169', sky_list, scale=True, combine='median',
+		reject='avsigclip')
+	#sarith_galaxy('ngc3169', sky, prefix='ssaverage/')
+	#calibrate_galaxy('ngc3169', sens)
 	
 
 def n6():
