@@ -55,22 +55,22 @@ def combine(input, output, **kwargs):
 	iraf.combine.unlearn()
 	iraf.combine(input=input, output=output, **kwargs)
 
-def coodproc(cood_fn):
-	cood_file = open(cood_fn, 'r')
-	cood = json.load(cood_file)
-	cood_file.close()
-	angles = get_angles(cood)
-	sections, size = get_sections(cood)
+def coordproc(coord_fn):
+	coord_file = open(coord_fn, 'r')
+	coord = json.load(coord_file)
+	coord_file.close()
+	angles = get_angles(coord)
+	sections, size = get_sections(coord)
 	tmp = []
 	for i in range(len(angles)):
 		tmp.append({'angle':angles[i], 'section':sections[i], 
 			'size':size[i]})
 	return tmp
 
-def get_sections(cood):
-	columns = cood.keys()
-	list1 = cood[columns[0]]
-	list2 = cood[columns[1]]
+def get_sections(coord):
+	columns = coord.keys()
+	list1 = coord[columns[0]]
+	list2 = coord[columns[1]]
 	sections = []
 	size = []
 	for i in range(len(list1)):
@@ -84,10 +84,10 @@ def get_sections(cood):
 		size.append(end - start)
 	return sections, size
 
-def get_angles(cood):
-	columns = cood.keys()
-	list1 = cood[columns[0]]
-	list2 = cood[columns[1]]
+def get_angles(coord):
+	columns = coord.keys()
+	list1 = coord[columns[0]]
+	list2 = coord[columns[1]]
 	run = float(columns[0]) - float(columns[1])
 	angles = []
 	for i in range(len(list1)):		
@@ -112,91 +112,91 @@ def imcopy(input, output, section, **kwargs):
 	tmp = input + section
 	iraf.imcopy(input=tmp, output=output, **kwargs)
 
-def rotate_mask(name, comp):
-	cood_data = coodproc('input/%s_cood.json' % name)
+def rotate_galaxy(name, comp):
+	coord_data = coordproc('input/%s_coord.json' % name)
 	os.chdir(name)
 	comp = '../' + comp
-	for i in range(len(cood_data)):
+	for i in range(len(coord_data)):
 		si = zerocount(i)
-		rotate("base", 'r%s' % si, cood_data[i]['angle'])
-		rotate(comp, 'r%sc' % si, cood_data[i]['angle'])
+		rotate("base", 'r%s' % si, coord_data[i]['angle'])
+		rotate(comp, 'r%sc' % si, coord_data[i]['angle'])
 	os.chdir('..')
 
-def imcopy_mask(name):
-	cood_data = coodproc('input/%s_cood.json' % name)
+def imcopy_galaxy(name):
+	coord_data = coordproc('input/%s_coord.json' % name)
 	os.chdir(name)
-	for i in range(len(cood_data)):
+	for i in range(len(coord_data)):
 		si = zerocount(i)
-		imcopy('r%s' % si, 's%s' % si, cood_data[i]['section'])
-		imcopy('r%sc' % si, 's%sc' % si, cood_data[i]['section'])
+		imcopy('r%s' % si, 's%s' % si, coord_data[i]['section'])
+		imcopy('r%sc' % si, 's%sc' % si, coord_data[i]['section'])
 	os.chdir('..')
 
-def apsum_mask(name):
-	cood_data = coodproc('input/%s_cood.json' % name)
+def apsum_galaxy(name):
+	coord_data = coordproc('input/%s_coord.json' % name)
 	os.chdir(name)
-	for i in range(len(cood_data)):
+	for i in range(len(coord_data)):
 		si = zerocount(i)
-		apsum('s%s' % si, '%s.1d' % si, cood_data[i]['section'])
-		apsum('s%sc' % si, '%sc.1d' % si, cood_data[i]['section'])
+		apsum('s%s' % si, '%s.1d' % si, coord_data[i]['section'])
+		apsum('s%sc' % si, '%sc.1d' % si, coord_data[i]['section'])
 	os.chdir('..')
 
-def reidentify_mask(name, reference):
-	cood_data = coodproc('input/%s_cood.json' % name)
+def reidentify_galaxy(name, reference):
+	coord_data = coordproc('input/%s_coord.json' % name)
 	os.chdir(name)
-	for i in range(len(cood_data)):
+	for i in range(len(coord_data)):
 		si = zerocount(i)
 		reidentify(reference, '%sc.1d.0001' % si)
 	os.chdir('..')
 
-def hedit_mask(name):
-	cood_data = coodproc('input/%s_cood.json' % name)
+def hedit_galaxy(name):
+	coord_data = coordproc('input/%s_coord.json' % name)
 	os.chdir(name)
-	for i in range(len(cood_data)):
+	for i in range(len(coord_data)):
 		si = zerocount(i)
 		hedit('%s.1d.0001' % si, 'REFSPEC1', '%sc.1d.0001' % si)
 	os.chdir('..')
 
-def dispcor_mask(name):
-	cood_data = coodproc('input/%s_cood.json' % name)
+def dispcor_galaxy(name):
+	coord_data = coordproc('input/%s_coord.json' % name)
 	os.chdir(name)
-	for i in range(len(cood_data)):
+	for i in range(len(coord_data)):
 		si = zerocount(i)
 		dispcor('%s.1d.0001' % si, 'd%s.1d' % si)
 	os.chdir('..')
 
-def sky_subtract_mask(name, sky, prefix='', scale=False):
-	cood_data = coodproc('input/%s_cood.json' % name)
+def sky_subtract_galaxy(name, sky, prefix='', scale=False):
+	coord_data = coordproc('input/%s_coord.json' % name)
 	os.chdir(name)
 	if scale == True:
-		for i in range(len(cood_data)):
+		for i in range(len(coord_data)):
 			si = zerocount(i)
 			scaled_sky = '%ssky.1d.%s' % (prefix, si)
-			sarith(sky, '*', cood_data[i]['size'], scaled_sky)
+			sarith(sky, '*', coord_data[i]['size'], scaled_sky)
 			sarith('d%s.1d.0001' % si, '-', scaled_sky, '%sds%s.1d.0001' % (prefix, si))
 	else:
-		for i in range(len(cood_data)):
+		for i in range(len(coord_data)):
 			si = zerocount(i)
 			sarith('d%s.1d.0001' % si, '-', sky, 
 				'%sds%s.1d.0001' % (prefix, si))
 	os.chdir('..')
 
 def print_size(name, list=''):
-	cood_data = coodproc('input/%s_cood.json' % name)
+	coord_data = coordproc('input/%s_coord.json' % name)
 	if list == '':
-		list = range(len(cood_data))
+		list = range(len(coord_data))
 	for i in list:
-		print i, cood_data[i]['size']
+		print i, coord_data[i]['size']
 
 def scale_spectra(input, scale, output):
 	sarith(input, '/', scale, output)
 
 def combine_sky_spectra(name, list, out='sky.1d', scale=False, **kwargs):
-	cood_data = coodproc('input/%s_cood.json' % name)
+	coord_data = coordproc('input/%s_coord.json' % name)
 	os.chdir(name)
 	if scale == True:
 		flist = []
 		for spectra in list:
-			scale = cood_data[spectra]['size']
+			scale = coord_data[spectra]['size']
 			i = zerocount(spectra)
 			sarith('d%s.1d.0001' % i, '/', scale, 
 				'd%s.1d.scaled' % i)
@@ -214,10 +214,10 @@ def list_convert(list):
 		str += ', %s' % item
 	return str
 
-def calibrate_mask(name, sens, prefix=''):
-	cood_data = coodproc('input/%s_cood.json' % name)
+def calibrate_galaxy(name, sens, prefix=''):
+	coord_data = coordproc('input/%s_coord.json' % name)
 	os.chdir(name)
-	for i in range(len(cood_data)):
+	for i in range(len(coord_data)):
 		si = zerocount(i)
 		calibrate('%sds%s.1d.0001' % (prefix, si), sens, '%sdsc%s.1d.0001' % (prefix, si))
 	os.chdir('..')

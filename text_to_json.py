@@ -7,11 +7,8 @@ import sys, os
 import simplejson as json
 
 def main(args):
-	json_file_name = args.pop()
 	internal_dict = {}
 	type_file = open(args[-1], 'r')
-	types = type_file.readlines()
-	type_file.close()
 	for file in args[:-1]:
 		name, column, ext = file.split('.')
 		#column = raw_input("What column is this for? (%s) " % file)
@@ -24,9 +21,8 @@ def main(args):
 				tmp = line.split('-')
 				start = tmp[0].strip()
 				end = tmp[1].strip()
-				type = types.pop(0)
 				internal_dict[column].append({"start": start,
-					"end": end, 'type': type})
+					"end": end})
 	json_fn = '%s_coord.json' % name
 	json_file = open(json_fn, "w")
 	json.dump(internal_dict, json_file)
