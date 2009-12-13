@@ -45,12 +45,12 @@ def n3():
 	#then run standard and sensfunc manually
 #flux calibration and sky subtraction
 	#sky = '../ngc3169/sky.average.1d'
-	#sens = '../feige34/feige34.sens'
-	sky_list = [0, 2, 3, 6, 17, 18, 24]
-	combine_sky_spectra('3169', sky_list, scale=True, combine='median',
-		reject='avsigclip')
-	#sarith_galaxy('ngc3169', sky, prefix='ssaverage/')
-	#calibrate_galaxy('ngc3169', sens)
+	sens = '../feige34/feige34.sens'
+	#sky_list = [0, 2, 18, 24]
+	#combine_sky_spectra('ngc3169', sky_list, scale=True, combine='median', reject='avsigclip', out='no_setup.sky.1d')
+	#sky_subtract_galaxy('ngc3169', 'no_setup.sky.1d', prefix='no_setup/', scale=True)
+	#sky_subtract_galaxy('feige34', '../ngc3169/no_setup.sky.1d', scale=True)
+	calibrate_galaxy('ngc3169', '../feige34/sfeige34.sens', prefix='sfeige34/')
 	
 
 def n6():

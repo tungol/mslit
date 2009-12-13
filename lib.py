@@ -165,30 +165,48 @@ def dispcor_galaxy(name):
 		dispcor('%s.1d.0001' % si, 'd%s.1d.0001' % si)
 	os.chdir('..')
 
-def sarith_galaxy(name, sky, prefix=''):
+def sky_subtract_galaxy(name, sky, prefix='', scale=False):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
-	for i in range(len(cood_data)):
-		si = zerocount(i)
-		sarith('d%s.1d.0001' % si, '-', sky, '%sds%s.1d.0001' % (prefix, si))
+	if scale == True:
+		for i in range(len(cood_data)):
+			si = zerocount(i)
+			scaled_sky = '%ssky.1d.%s' % (prefix, si)
+			sarith(sky, '*', cood_data[i]['size'], scaled_sky)
+			sarith('d%s.1d.0001' % si, '-', scaled_sky, '%sds%s.1d.0001' % (prefix, si))
+	else:
+		for i in range(len(cood_data)):
+			si = zerocount(i)
+			sarith('d%s.1d.0001' % si, '-', sky, 
+				'%sds%s.1d.0001' % (prefix, si))
 	os.chdir('..')
 
+def print_size(name, list=''):
+	cood_data = coodproc('input/%s_cood.json' % name)
+	if list == '':
+		list = range(len(cood_data))
+	for i in list:
+		print i, cood_data[i]['size']
+
+def scale_spectra(input, scale, output):
+	sarith(input, '/', scale, output)
+
 def combine_sky_spectra(name, list, out='sky.1d', scale=False, **kwargs):
-	cood_data == coodproc('input/%s_cood.json' % name)
+	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	if scale == True:
-		list = []
+		flist = []
 		for spectra in list:
 			scale = cood_data[spectra]['size']
 			i = zerocount(spectra)
 			sarith('d%s.1d.0001' % i, '/', scale, 
 				'd%s.1d.scaled' % i)
-			list.append('d%s.1d.scaled' % i)
+			flist.append('d%s.1d.scaled' % i)
 	else:
-		list = []
+		flist = []
 		for spectra in list:
-			list.append('d%s.1d.0001' % i)
-	scombine(list_convert(list), out, **kwargs)
+			flist.append('d%s.1d.0001' % i)
+	scombine(list_convert(flist), out, **kwargs)
 	os.chdir('..')
 
 def list_convert(list):
@@ -197,12 +215,12 @@ def list_convert(list):
 		str += ', %s' % item
 	return str
 
-def calibrate_galaxy(name, sens):
+def calibrate_galaxy(name, sens, prefix=''):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
 		si = zerocount(i)
-		calibrate('ds%s.1d.0001' % si, sens, 'dsc%s.1d.0001' % si)
+		calibrate('%sds%s.1d.0001' % (prefix, si), sens, '%sdsc%s.1d.0001' % (prefix, si))
 	os.chdir('..')
 
 def zerocount(i):
@@ -223,7 +241,7 @@ def dispcor(input, output, **kwargs):
 	iraf.dispcor.unlearn()
 	iraf.dispcor(input=input, output=output, **kwargs)
 
-def scombine(input, output, **kwargs)
+def scombine(input, output, **kwargs):
 	load_onedspec()
 	iraf.scombine.unlearn()
 	iraf.scombine(input=input, output=output, **kwargs)
