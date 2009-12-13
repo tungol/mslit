@@ -44,7 +44,6 @@ def flatcombine(input, **kwargs):
 
 def ccdproc(images, **kwargs):
 	load_ccdred()
-	kwargs.setdefault('fixpix', 'no')
 	kwargs.setdefault('darkcor', 'no')
 	kwargs.setdefault('biassec', '[2049:2080,1:501]')
 	kwargs.setdefault('trimsec', '[1:2048,1:501]')
@@ -113,7 +112,7 @@ def imcopy(input, output, section, **kwargs):
 	tmp = input + section
 	iraf.imcopy(input=tmp, output=output, **kwargs)
 
-def rotate_galaxy(name, comp):
+def rotate_mask(name, comp):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	comp = '../' + comp
@@ -123,7 +122,7 @@ def rotate_galaxy(name, comp):
 		rotate(comp, 'r%sc' % si, cood_data[i]['angle'])
 	os.chdir('..')
 
-def imcopy_galaxy(name):
+def imcopy_mask(name):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
@@ -132,7 +131,7 @@ def imcopy_galaxy(name):
 		imcopy('r%sc' % si, 's%sc' % si, cood_data[i]['section'])
 	os.chdir('..')
 
-def apsum_galaxy(name):
+def apsum_mask(name):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
@@ -141,7 +140,7 @@ def apsum_galaxy(name):
 		apsum('s%sc' % si, '%sc.1d' % si, cood_data[i]['section'])
 	os.chdir('..')
 
-def reidentify_galaxy(name, reference):
+def reidentify_mask(name, reference):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
@@ -149,7 +148,7 @@ def reidentify_galaxy(name, reference):
 		reidentify(reference, '%sc.1d.0001' % si)
 	os.chdir('..')
 
-def hedit_galaxy(name):
+def hedit_mask(name):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
@@ -157,15 +156,15 @@ def hedit_galaxy(name):
 		hedit('%s.1d.0001' % si, 'REFSPEC1', '%sc.1d.0001' % si)
 	os.chdir('..')
 
-def dispcor_galaxy(name):
+def dispcor_mask(name):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
 		si = zerocount(i)
-		dispcor('%s.1d.0001' % si, 'd%s.1d.0001' % si)
+		dispcor('%s.1d.0001' % si, 'd%s.1d' % si)
 	os.chdir('..')
 
-def sky_subtract_galaxy(name, sky, prefix='', scale=False):
+def sky_subtract_mask(name, sky, prefix='', scale=False):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	if scale == True:
@@ -215,7 +214,7 @@ def list_convert(list):
 		str += ', %s' % item
 	return str
 
-def calibrate_galaxy(name, sens, prefix=''):
+def calibrate_mask(name, sens, prefix=''):
 	cood_data = coodproc('input/%s_cood.json' % name)
 	os.chdir(name)
 	for i in range(len(cood_data)):
