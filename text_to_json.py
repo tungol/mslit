@@ -23,7 +23,7 @@ def main(args):
 				end = tmp[1].strip()
 				internal_dict[column].append({"start": start,
 					"end": end})
-	json_fn = '%s_coord.json' % name
+	json_fn = '%s.json' % name
 	json_file = open(json_fn, "w")
 	json.dump(internal_dict, json_file)
 	json_file.close()

@@ -55,22 +55,25 @@ def combine(input, output, **kwargs):
 	iraf.combine.unlearn()
 	iraf.combine(input=input, output=output, **kwargs)
 
-def coordproc(coord_fn):
-	coord_file = open(coord_fn, 'r')
-	coord = json.load(coord_file)
-	coord_file.close()
-	angles = get_angles(coord)
-	sections, size = get_sections(coord)
-	tmp = []
+def get_data(name):
+	fn = '../input/%s.json' % name
+	data_file = open(fn, 'r')
+	raw_data = json.load(data_file)
+	file.close()
+	types = raw_data['types'][:]
+	del raw_data['types']
+	angles = get_angles(raw_data)
+	sections, size = get_sections(raw_data)
+	data = []
 	for i in range(len(angles)):
-		tmp.append({'angle':angles[i], 'section':sections[i], 
-			'size':size[i]})
-	return tmp
+		data.append({'angle':angles[i], 'section':sections[i], 
+			'size':size[i], 'type':types[i]})
+	return data
 
-def get_sections(coord):
-	columns = coord.keys()
-	list1 = coord[columns[0]]
-	list2 = coord[columns[1]]
+def get_sections(raw_data):
+	columns = raw_data.keys()
+	list1 = raw_data[columns[0]]
+	list2 = raw_data[columns[1]]
 	sections = []
 	size = []
 	for i in range(len(list1)):
@@ -84,10 +87,10 @@ def get_sections(coord):
 		size.append(end - start)
 	return sections, size
 
-def get_angles(coord):
-	columns = coord.keys()
-	list1 = coord[columns[0]]
-	list2 = coord[columns[1]]
+def get_angles(raw_data):
+	columns = raw_data.keys()
+	list1 = raw_data[columns[0]]
+	list2 = raw_data[columns[1]]
 	run = float(columns[0]) - float(columns[1])
 	angles = []
 	for i in range(len(list1)):		
@@ -113,90 +116,90 @@ def imcopy(input, output, section, **kwargs):
 	iraf.imcopy(input=tmp, output=output, **kwargs)
 
 def rotate_galaxy(name, comp):
-	coord_data = coordproc('input/%s_coord.json' % name)
+	data = get_data(name)
 	os.chdir(name)
 	comp = '../' + comp
-	for i in range(len(coord_data)):
+	for i in range(len(data)):
 		si = zerocount(i)
-		rotate("base", 'r%s' % si, coord_data[i]['angle'])
-		rotate(comp, 'r%sc' % si, coord_data[i]['angle'])
+		rotate("base", 'r%s' % si, data[i]['angle'])
+		rotate(comp, 'r%sc' % si, data[i]['angle'])
 	os.chdir('..')
 
 def imcopy_galaxy(name):
-	coord_data = coordproc('input/%s_coord.json' % name)
+	data = get_data(name)
 	os.chdir(name)
-	for i in range(len(coord_data)):
+	for i in range(len(data)):
 		si = zerocount(i)
-		imcopy('r%s' % si, 's%s' % si, coord_data[i]['section'])
-		imcopy('r%sc' % si, 's%sc' % si, coord_data[i]['section'])
+		imcopy('r%s' % si, 's%s' % si, data[i]['section'])
+		imcopy('r%sc' % si, 's%sc' % si, data[i]['section'])
 	os.chdir('..')
 
 def apsum_galaxy(name):
-	coord_data = coordproc('input/%s_coord.json' % name)
+	data = get_data(name)
 	os.chdir(name)
-	for i in range(len(coord_data)):
+	for i in range(len(data)):
 		si = zerocount(i)
-		apsum('s%s' % si, '%s.1d' % si, coord_data[i]['section'])
-		apsum('s%sc' % si, '%sc.1d' % si, coord_data[i]['section'])
+		apsum('s%s' % si, '%s.1d' % si, data[i]['section'])
+		apsum('s%sc' % si, '%sc.1d' % si, data[i]['section'])
 	os.chdir('..')
 
 def reidentify_galaxy(name, reference):
-	coord_data = coordproc('input/%s_coord.json' % name)
+	data = get_data(name)
 	os.chdir(name)
-	for i in range(len(coord_data)):
+	for i in range(len(data)):
 		si = zerocount(i)
 		reidentify(reference, '%sc.1d.0001' % si)
 	os.chdir('..')
 
 def hedit_galaxy(name):
-	coord_data = coordproc('input/%s_coord.json' % name)
+	data = get_data(name)
 	os.chdir(name)
-	for i in range(len(coord_data)):
+	for i in range(len(data)):
 		si = zerocount(i)
 		hedit('%s.1d.0001' % si, 'REFSPEC1', '%sc.1d.0001' % si)
 	os.chdir('..')
 
 def dispcor_galaxy(name):
-	coord_data = coordproc('input/%s_coord.json' % name)
+	data = get_data(name)
 	os.chdir(name)
-	for i in range(len(coord_data)):
+	for i in range(len(data)):
 		si = zerocount(i)
 		dispcor('%s.1d.0001' % si, 'd%s.1d' % si)
 	os.chdir('..')
 
 def sky_subtract_galaxy(name, sky, prefix='', scale=False):
-	coord_data = coordproc('input/%s_coord.json' % name)
+	data = get_data(name)
 	os.chdir(name)
 	if scale == True:
-		for i in range(len(coord_data)):
+		for i in range(len(data)):
 			si = zerocount(i)
 			scaled_sky = '%ssky.1d.%s' % (prefix, si)
-			sarith(sky, '*', coord_data[i]['size'], scaled_sky)
+			sarith(sky, '*', data[i]['size'], scaled_sky)
 			sarith('d%s.1d.0001' % si, '-', scaled_sky, '%sds%s.1d.0001' % (prefix, si))
 	else:
-		for i in range(len(coord_data)):
+		for i in range(len(data)):
 			si = zerocount(i)
 			sarith('d%s.1d.0001' % si, '-', sky, 
 				'%sds%s.1d.0001' % (prefix, si))
 	os.chdir('..')
 
 def print_size(name, list=''):
-	coord_data = coordproc('input/%s_coord.json' % name)
+	data = get_data(name)
 	if list == '':
-		list = range(len(coord_data))
+		list = range(len(data))
 	for i in list:
-		print i, coord_data[i]['size']
+		print i, data[i]['size']
 
 def scale_spectra(input, scale, output):
 	sarith(input, '/', scale, output)
 
-def combine_sky_spectra(name, list, out='sky.1d', scale=False, **kwargs):
-	coord_data = coordproc('input/%s_coord.json' % name)
+def combine_sky_spectra(name, out='sky.1d', scale=False, **kwargs):
+	data = get_data(name)
 	os.chdir(name)
 	if scale == True:
 		flist = []
 		for spectra in list:
-			scale = coord_data[spectra]['size']
+			scale = data[spectra]['size']
 			i = zerocount(spectra)
 			sarith('d%s.1d.0001' % i, '/', scale, 
 				'd%s.1d.scaled' % i)
@@ -215,9 +218,9 @@ def list_convert(list):
 	return str
 
 def calibrate_galaxy(name, sens, prefix=''):
-	coord_data = coordproc('input/%s_coord.json' % name)
+	data = get_data(name)
 	os.chdir(name)
-	for i in range(len(coord_data)):
+	for i in range(len(data)):
 		si = zerocount(i)
 		calibrate('%sds%s.1d.0001' % (prefix, si), sens, '%sdsc%s.1d.0001' % (prefix, si))
 	os.chdir('..')
