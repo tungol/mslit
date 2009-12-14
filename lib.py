@@ -64,7 +64,7 @@ def get_data(name):
 		data = []
 		for i in range(len(angles)):
 			data.append({'angle':angles[i], 'section':sections[i], 
-				'size':size[i], 'type':types[i]})
+				'size':size[i], 'type':types[i], 'number':i})
 		write_data(name, data)
 	else:
 		data = raw_data['data']
@@ -90,8 +90,19 @@ def get_raw_data(name):
 
 def set_value(name, value_name, value):
 	raw_data = get_raw_data(name)
-	raw_data['data'].update({value_name: value})
+	raw_data.update({value_name: value})
 	write_raw_data(name, raw_data)
+
+def get_value(name, value_name):
+	raw_data = get_raw_data(name)
+	if value_name == 'sky_spectra':
+		if 'use_sky' in raw_data:
+			sky_spectra = get_value(raw_data['use_sky'], 'sky_spectra')
+			fn = '../%s/%s' % (raw_data['use_sky'], sky_spectra)
+			return fn
+	else:
+		return raw_data[value]
+	
 
 def get_sections(raw_data):
 	columns = raw_data.keys()
@@ -190,14 +201,40 @@ def dispcor_galaxy(name):
 		dispcor('%s.1d.0001' % si, 'd%s.1d' % si)
 	os.chdir('..')
 
-def sky_subtract_galaxy(name, sky, prefix='', scale=False):
+def get_scaling(spectra, sky):
+	number = spectra['number']
+	name = 'd%s.1d' % zerocount(number)
+	spectrafits = pyfits.open(name)
+	skyfits = pyfits.open(sky)
+	#skylines: Na D 5893, OI 5578, OI 6301, OI 6365
+	lines = [5893, 5578, 6301, 6365]
+	scalings = []
+	for line in lines:
+		spectra_strength = get_wavelength_strength(spectra, line)
+		sky_strength = get_wavelength_strength(sky, line)
+		scalings.append(spectra_strength / sky_strength)
+	return avg(*scalings)
+
+def get_wavelength_strength(hdulist, wavelength)
+	headers = hdulist[0].header
+	data = hdulist[0].data
+	start = headers['CRVAL1']
+	step = headers['CDELT1']
+	tmp = wavelength - start
+	number = round(tmp / step)
+	return data[number]
+
+def sky_subtract_galaxy(name, sky='',  prefix='', scale=False):
 	data = get_data(name)
 	os.chdir(name)
+	if sky == '':
+		sky = get_value(name, 'sky_spectra')
 	if scale == True:
-		for i in range(len(data)):
+		for i, item in enumerate(data):
+			scale = get_scaling(item, sky)
 			si = zerocount(i)
 			scaled_sky = '%ssky.1d.%s' % (prefix, si)
-			sarith(sky, '*', data[i]['size'], scaled_sky)
+			sarith(sky, '*', scale, scaled_sky)
 			sarith('d%s.1d' % si, '-', scaled_sky, '%sds%s.1d' % (prefix, si))
 	else:
 		for i in range(len(data)):
@@ -236,6 +273,7 @@ def combine_sky_spectra(name, out='sky.1d', scale=False, **kwargs):
 		for spectra in list:
 			flist.append('d%s.1d' % i)
 	scombine(list_convert(flist), out, **kwargs)
+	set_value(name, 'sky_spectra', out)
 	os.chdir('..')
 
 def list_convert(list):
@@ -244,9 +282,10 @@ def list_convert(list):
 		str += ', %s' % item
 	return str
 
-def calibrate_galaxy(name, sens, prefix=''):
+def calibrate_galaxy(name, calibration, prefix=''):
 	data = get_data(name)
 	os.chdir(name)
+	sens = '../%s/%s.sens' % (calibration, calibration)
 	for i in range(len(data)):
 		si = zerocount(i)
 		calibrate('%sds%s.1d' % (prefix, si), sens, '%sdsc%s.1d' % (prefix, si))

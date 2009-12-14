@@ -43,16 +43,30 @@ def n3_slices():
 	apsum_galaxy('pg1708+602')
 	
 def n3_dispersion():
-#ngc4725
-	hedit_galaxy('ngc4725')
-	dispcor_galaxy('ngc4725')
 #ngc3169
 	hedit_galaxy('ngc3169')
 	dispcor_galaxy('ngc3169')
+	combine_sky_spectra('ngc3169', scale=True)
+	sky_subtract_galaxy('ngc3169', scale=True)
 #feige34
 	hedit_galaxy('feige34')
 	dispcor_galaxy('feige34')
+	combine_sky_spectra('feige34', scale=True)
+	sky_subtract_galaxy('feige34', scale=True)
+#pg1708+602
+	hedit_galaxy('pg1708+602')
+	dispcor_galaxy('pg1708+602')
+	combine_sky_spectra('pg1708+602', scale=True)
+	sky_subtract_galaxy('pg1708+602', scale=True)
+#ngc4725
+	hedit_galaxy('ngc4725')
+	dispcor_galaxy('ngc4725')
+	set_value('ngc4725', 'use_sky', 'ngc3169')
+	sky_subtract_galaxy('ngc4725', scale=True)
 
+def n3_calibrate():
+	calibrate_galaxy('ngc3169', 'feige34')
+	calibrate_galaxy('ngc4725', 'pg1708+602')
 
 def n3():
 	location = "../n3"
@@ -63,14 +77,7 @@ def n3():
 	#then identify everything
 	#n3_dispersion()
 	#then run standard and sensfunc manually
-#flux calibration and sky subtraction
-	#sky = '../ngc3169/sky.average.1d'
-	#sens = '../feige34/feige34.sens'
-	#sky_list = [0, 2, 18, 24]
-	#combine_sky_spectra('ngc3169', sky_list, scale=True, combine='median', reject='avsigclip', out='no_setup.sky.1d')
-	#sky_subtract_galaxy('ngc3169', 'no_setup.sky.1d', prefix='no_setup/', scale=True)
-	#sky_subtract_galaxy('feige34', '../ngc3169/no_setup.sky.1d', scale=True)
-	#calibrate_galaxy('ngc3169', '../feige34/sfeige34.sens', prefix='sfeige34/')
+	#n3_calibrate()
 	
 
 def n6():
