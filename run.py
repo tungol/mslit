@@ -59,7 +59,7 @@ def n3():
 	os.chdir(location)
 	n3_initial()
 	#then make sure that you've got strip coordinate files
-	n3_slices()
+	#n3_slices()
 	#then identify everything
 	#n3_dispersion()
 	#then run standard and sensfunc manually

@@ -56,19 +56,42 @@ def combine(input, output, **kwargs):
 	iraf.combine(input=input, output=output, **kwargs)
 
 def get_data(name):
+	raw_data = get_raw_data(name)
+	if 'data' not in raw_data:
+		types = raw_data['types'][:]
+		angles = get_angles(raw_data['coord'])
+		sections, size = get_sections(raw_data['coord'])
+		data = []
+		for i in range(len(angles)):
+			data.append({'angle':angles[i], 'section':sections[i], 
+				'size':size[i], 'type':types[i]})
+		write_data(name, data)
+	else:
+		data = raw_data['data']
+	return data
+
+def write_data(name, data):
+	raw_data = get_raw_data(name)
+	raw_data.update['data':data]
+	write_raw_data(name, raw_data)
+
+def write_raw_data(name, raw_data):
+	fn = '../input/%s.json' % name
+	data_file = open(fn, 'w')
+	json.dump(data_file, raw_data)
+	data_file.close()
+
+def get_raw_data(name):
 	fn = '../input/%s.json' % name
 	data_file = open(fn, 'r')
 	raw_data = json.load(data_file)
 	file.close()
-	types = raw_data['types'][:]
-	del raw_data['types']
-	angles = get_angles(raw_data)
-	sections, size = get_sections(raw_data)
-	data = []
-	for i in range(len(angles)):
-		data.append({'angle':angles[i], 'section':sections[i], 
-			'size':size[i], 'type':types[i]})
-	return data
+	return raw_data
+
+def set_value(name, value_name, value):
+	raw_data = get_raw_data(name)
+	raw_data['data'].update({value_name: value})
+	write_raw_data(name, raw_data)
 
 def get_sections(raw_data):
 	columns = raw_data.keys()
@@ -175,12 +198,12 @@ def sky_subtract_galaxy(name, sky, prefix='', scale=False):
 			si = zerocount(i)
 			scaled_sky = '%ssky.1d.%s' % (prefix, si)
 			sarith(sky, '*', data[i]['size'], scaled_sky)
-			sarith('d%s.1d.0001' % si, '-', scaled_sky, '%sds%s.1d.0001' % (prefix, si))
+			sarith('d%s.1d' % si, '-', scaled_sky, '%sds%s.1d' % (prefix, si))
 	else:
 		for i in range(len(data)):
 			si = zerocount(i)
-			sarith('d%s.1d.0001' % si, '-', sky, 
-				'%sds%s.1d.0001' % (prefix, si))
+			sarith('d%s.1d' % si, '-', sky, 
+				'%sds%s.1d' % (prefix, si))
 	os.chdir('..')
 
 def print_size(name, list=''):
@@ -196,18 +219,22 @@ def scale_spectra(input, scale, output):
 def combine_sky_spectra(name, out='sky.1d', scale=False, **kwargs):
 	data = get_data(name)
 	os.chdir(name)
+	list = []
+	for i, item in enumerate(data):
+		if item['type'] == 'NIGHTSKY':
+			list.append(i)
 	if scale == True:
 		flist = []
 		for spectra in list:
 			scale = data[spectra]['size']
 			i = zerocount(spectra)
-			sarith('d%s.1d.0001' % i, '/', scale, 
+			sarith('d%s.1d' % i, '/', scale, 
 				'd%s.1d.scaled' % i)
 			flist.append('d%s.1d.scaled' % i)
 	else:
 		flist = []
 		for spectra in list:
-			flist.append('d%s.1d.0001' % i)
+			flist.append('d%s.1d' % i)
 	scombine(list_convert(flist), out, **kwargs)
 	os.chdir('..')
 
@@ -222,7 +249,7 @@ def calibrate_galaxy(name, sens, prefix=''):
 	os.chdir(name)
 	for i in range(len(data)):
 		si = zerocount(i)
-		calibrate('%sds%s.1d.0001' % (prefix, si), sens, '%sdsc%s.1d.0001' % (prefix, si))
+		calibrate('%sds%s.1d' % (prefix, si), sens, '%sdsc%s.1d' % (prefix, si))
 	os.chdir('..')
 
 def zerocount(i):
