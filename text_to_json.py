@@ -1,15 +1,14 @@
 #!/usr/bin/env python
 
 #script for transforming plaintext list of image coordinates into json
-# useage: text2json <name.(column1).txt> <name.(column2).txt> <name.types.txt>
+# useage: text2json <name.(column1).txt> <name.(column2).txt>
 
 import sys, os
 import simplejson as json
 
 def main(args):
 	internal_dict = {}
-	type_file = open(args[-1], 'r')
-	for file in args[:-1]:
+	for file in args:
 		name, column, ext = file.split('.')
 		#column = raw_input("What column is this for? (%s) " % file)
 		internal_dict.update({column: []})

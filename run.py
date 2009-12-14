@@ -3,7 +3,7 @@ import simplejson as json
 from pyraf import iraf
 from lib import *
 
-def n3_inital():
+def n3_initial():
 	zerocombine("@lists/zero")
 	flatcombine("@lists/flat1", output = "Flat1")
 	flatcombine("@lists/flat2", output = "Flat2")
@@ -71,9 +71,10 @@ def n3_calibrate():
 def n3():
 	location = "../n3"
 	os.chdir(location)
+	set_BASE(os.getcwd())
 	n3_initial()
 	#then make sure that you've got strip coordinate files
-	#n3_slices()
+	n3_slices()
 	#then identify everything
 	#n3_dispersion()
 	#then run standard and sensfunc manually

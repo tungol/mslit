@@ -1,10 +1,14 @@
-import math, os
+import math, os, os.path
 import simplejson as json
 from pyraf import iraf
 
 def avg(*args):
 	floatNums = [float(x) for x in args]
 	return sum(floatNums) / len(args)
+
+def set_BASE(base):
+	global BASE
+	BASE = base
 
 def load_ccdred():
 	iraf.noao(_doprint=0)
@@ -76,16 +80,16 @@ def write_data(name, data):
 	write_raw_data(name, raw_data)
 
 def write_raw_data(name, raw_data):
-	fn = '../input/%s.json' % name
+	fn = os.path.join(BASE, 'input/%s.json' % name)
 	data_file = open(fn, 'w')
 	json.dump(data_file, raw_data)
 	data_file.close()
 
 def get_raw_data(name):
-	fn = '../input/%s.json' % name
+	fn = os.path.join(BASE, 'input/%s.json' % name)
 	data_file = open(fn, 'r')
 	raw_data = json.load(data_file)
-	file.close()
+	data_file.close()
 	return raw_data
 
 def set_value(name, value_name, value):
@@ -98,7 +102,8 @@ def get_value(name, value_name):
 	if value_name == 'sky_spectra':
 		if 'use_sky' in raw_data:
 			sky_spectra = get_value(raw_data['use_sky'], 'sky_spectra')
-			fn = '../%s/%s' % (raw_data['use_sky'], sky_spectra)
+			fn = os.path.combine(BASE, 
+				'%s/%s' % (raw_data['use_sky'], sky_spectra))
 			return fn
 	else:
 		return raw_data[value]
@@ -123,6 +128,7 @@ def get_sections(raw_data):
 
 def get_angles(raw_data):
 	columns = raw_data.keys()
+	print columns
 	list1 = raw_data[columns[0]]
 	list2 = raw_data[columns[1]]
 	run = float(columns[0]) - float(columns[1])
@@ -151,13 +157,10 @@ def imcopy(input, output, section, **kwargs):
 
 def rotate_galaxy(name, comp):
 	data = get_data(name)
-	os.chdir(name)
-	comp = '../' + comp
-	for i in range(len(data)):
+	for i, item in enumerate(data):
 		si = zerocount(i)
-		rotate("base", 'r%s' % si, data[i]['angle'])
-		rotate(comp, 'r%sc' % si, data[i]['angle'])
-	os.chdir('..')
+		rotate("%s/base" % name, '%s/r%s' % (name, si), item['angle'])
+		rotate(comp, '%s/r%sc' % (name, si), item['angle'])
 
 def imcopy_galaxy(name):
 	data = get_data(name)
@@ -215,7 +218,7 @@ def get_scaling(spectra, sky):
 		scalings.append(spectra_strength / sky_strength)
 	return avg(*scalings)
 
-def get_wavelength_strength(hdulist, wavelength)
+def get_wavelength_strength(hdulist, wavelength):
 	headers = hdulist[0].header
 	data = hdulist[0].data
 	start = headers['CRVAL1']
@@ -285,7 +288,7 @@ def list_convert(list):
 def calibrate_galaxy(name, calibration, prefix=''):
 	data = get_data(name)
 	os.chdir(name)
-	sens = '../%s/%s.sens' % (calibration, calibration)
+	sens = os.path.combine(BASE, '%s/%s.sens' % (calibration, calibration))
 	for i in range(len(data)):
 		si = zerocount(i)
 		calibrate('%sds%s.1d' % (prefix, si), sens, '%sdsc%s.1d' % (prefix, si))
