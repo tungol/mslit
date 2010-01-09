@@ -21,42 +21,37 @@ def n3_initial():
 	init_galaxy('feige34', 'Mask2.pl', 'Zero', 'Flat1')
 	init_galaxy('pg1708+602', 'Mask2.pl', 'Zero', 'Flat2')
 
+def slice_galaxy(name, comp):
+	rotate_galaxy(name, comp)
+	imcopy_galaxy(name)
+	apsum_galaxy(name)
+	
 def n3_slices():
-#ngc4725
-	rotate_galaxy('ngc4725', '@lists/henear2')
-	imcopy_galaxy('ngc4725')
-	apsum_galaxy('ngc4725')
-#ngc3169	
-	rotate_galaxy('ngc3169', '@lists/henear1')
-	imcopy_galaxy('ngc3169')
-	apsum_galaxy('ngc3169')
-#feige34
-	rotate_galaxy('feige34', '@lists/henear1')
-	imcopy_galaxy('feige34')
-	apsum_galaxy('feige34')
-#pg1708+602
-	rotate_galaxy('pg1708+602', '@lists/henear2')
-	imcopy_galaxy('pg1708+602')
-	apsum_galaxy('pg1708+602')
+	slice_galaxy('ngc4725', 'henear2')
+	slice_galaxy('ngc3169', 'henear1')
+	slice_galaxy('feige34', 'henear1')
+	slice_galaxy('pg1708+602', 'henear2')
+	#some folders needed in the next part
+	os.makedirs('database/idngc4725/sum')
+	os.makedirs('database/idngc3169/sum')
+	os.makedirs('database/idfeige34/sum')
+	os.makedirs('database/idpg1708+602/sum')
+
+def disp_galaxy(name):
+	os.mkdir('%s/disp' % name)
+	hedit_galaxy(name)
+	dispcor_galaxy(name)
 	
 def n3_dispersion():
-#ngc3169
-	hedit_galaxy('ngc3169')
-	dispcor_galaxy('ngc3169')
-#feige34
-	hedit_galaxy('feige34')
-	dispcor_galaxy('feige34')
-#pg1708+602
-	hedit_galaxy('pg1708+602')
-	dispcor_galaxy('pg1708+602')
-#ngc4725
-	hedit_galaxy('ngc4725')
-	dispcor_galaxy('ngc4725')
+	disp_galaxy('ngc3169')
+	disp_galaxy('feige34')
+	disp_galaxy('pg1708+602')
+	disp_galaxy('ngc4725')
 
 def n3_skies():
 #ngc3169
-	#combine_sky_spectra('ngc3169', scale=True)
-	sky_subtract_galaxy('ngc3169', scale=True)
+	combine_sky_spectra('ngc3169', scale=True)
+	#sky_subtract_galaxy('ngc3169', scale=True)
 #feige34
 	#combine_sky_spectra('feige34', scale=True)
 	#sky_subtract_galaxy('feige34', scale=True)
@@ -75,11 +70,11 @@ def n3():
 	location = "../n3"
 	os.chdir(location)
 	set_BASE(os.getcwd())
-	n3_initial()
+	#n3_initial()
 	#then make sure that you've got strip coordinate files
 	#n3_slices()
 	#then identify everything
-	#n3_dispersion()
+	n3_dispersion()
 	#n3_skies()
 	#then run standard and sensfunc manually
 	#n3_calibrate()

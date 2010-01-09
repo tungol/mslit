@@ -156,24 +156,32 @@ def imcopy(input, output, **kwargs):
 
 def rotate_galaxy(name, comp):
 	data = get_data(name)
+	os.mkdir('%s/rot' % name)
 	for i, item in enumerate(data):
 		num = zerocount(i)
-		rotate("%s/base" % name, '%s/r%s' % (name, num), item['angle'])
-		rotate(comp, '%s/r%sc' % (name, num), item['angle'])
+		rotate("%s/base" % name, '%s/rot/%s' % (name, num), item['angle'])
+		rotate('@lists/%s' % comp, '%s/rot/%sc' % (name, num), item['angle'])
 
 def imcopy_galaxy(name):
 	data = get_data(name)
+	os.mkdir('%s/slice' % name)
 	for i, item in enumerate(data):
 		num = zerocount(i)
-		imcopy('%s/r%s%s' % (name, num, item['section']), '%s/s%s' % (name, num))
-		imcopy('%s/r%sc%s' % (name, num, item['section']), '%s/s%sc' % (name, num))
+		imcopy('%s/rot/%s%s' % (name, num, item['section']), '%s/slice/%s' % (name, num))
+		imcopy('%s/rot/%sc%s' % (name, num, item['section']), '%s/slice/%sc' % (name, num))
 
 def apsum_galaxy(name):
 	data = get_data(name)
+	os.mkdir('%s/sum' % name)
 	for i, item in enumerate(data):
 		num = zerocount(i)
-		apsum('%s/s%s' % (name, num), '%s/%s.1d' % (name, num), item['section'])
-		apsum('%s/s%sc' % (name, num), '%s/%sc.1d' % (name, num), item['section'])
+		apsum('%s/slice/%s' % (name, num), '%s/sum/%s.1d' % (name, num), item['section'])
+		apsum('%s/slice/%sc' % (name, num), '%s/sum/%sc.1d' % (name, num), item['section'])
+		namefix('%s/sum/%s.1d' % (name, num))
+		namefix('%s/sum/%sc.1d' % (name, num))
+
+def namefix(name):
+	os.rename('%s.0001.fits' % name, '%s.fits' % name)
 
 def reidentify_galaxy(name, reference):
 	data = get_data(name)
@@ -185,15 +193,13 @@ def hedit_galaxy(name):
 	data = get_data(name)
 	for i, item in enumerate(data):
 		num = zerocount(i)
-		hedit('%s/%s.1d.0001' % (name, num), 'REFSPEC1', '%sc.1d.0001' % num)
+		hedit('%s/sum/%s.1d' % (name, num), 'REFSPEC1', '%s/sum/%sc.1d' % (name, num))
 
 def dispcor_galaxy(name):
 	data = get_data(name)
-	os.chdir(name)
 	for i, item in enumerate(data):
 		num = zerocount(i)
-		dispcor('%s.1d.0001' % num, 'd%s.1d' % num)
-	os.chdir('..')
+		dispcor('%s/sum/%s.1d' % (name, num), '%s/disp/%s.1d' % (name, num))
 
 def get_scaling(name, spectra, sky):
 	number = spectra['number']
