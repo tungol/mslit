@@ -1,4 +1,4 @@
-import math, os, os.path
+import math, os, os.path, scipy.optimize
 import simplejson as json
 from pyraf import iraf
 import pyfits
@@ -6,6 +6,15 @@ import pyfits
 def avg(*args):
 	floatNums = [float(x) for x in args]
 	return sum(floatNums) / len(args)
+
+def rms(*args):
+	squares = [(float(x) ** 2) for x in args]
+	return math.sqrt(avg(*squares))
+
+def std(*args):
+	mean = avg(*args)
+	deviations = [(float(x) - mean) for x in args]
+	return rms(*deviations)
 
 def set_BASE(base):
 	global BASE
@@ -101,14 +110,7 @@ def set_value(name, value_name, value):
 
 def get_value(name, value_name):
 	raw_data = get_raw_data(name)
-	if value_name == 'sky_spectra':
-		if 'use_sky' in raw_data:
-			sky_spectra = get_value(raw_data['use_sky'], 'sky_spectra')
-			fn = os.path.combine(BASE, 
-				'%s/%s' % (raw_data['use_sky'], sky_spectra))
-			return fn
 	return raw_data[value_name]
-	
 
 def get_sections(raw_data):
 	columns = raw_data.keys()
@@ -201,44 +203,86 @@ def dispcor_galaxy(name):
 		num = zerocount(i)
 		dispcor('%s/sum/%s.1d' % (name, num), '%s/disp/%s.1d' % (name, num))
 
-def get_scaling(name, spectra, sky):
+def sky_subtract(name, spectra, sky, lines):
+	num = zerocount(spectra['number'])
+	guess = guess_scaling(name, spectra, sky, lines)
+	# fmin
+	os.mkdir('%s/tmp/%s' % (name, num))
+	xopt = scipy.optimize.fmin(get_std_sky, guess, args=(name, num, lines), xtol=0.001)
+	return xopt
+	# annealing
+	#anneal_out = scipy.optimize.anneal(get_std_sky, guess, args=(name, num), lower=0, upper=20, T0=0.4)
+	#return anneal_out[0]
+
+def get_std_sky(scale, name, num, lines):
+	scale = float(scale)
+	sky = '%s/sky.1d' % name
+	scaled_sky = '%s/tmp/%s/%s.sky' % (name, num, scale)
+	in_fn = '%s/disp/%s.1d' % (name, num)
+	out_fn = '%s/tmp/%s/%s.1d' % (name, num, scale)
+	sarith(sky, '*', scale, scaled_sky)
+	sarith(in_fn, '-', scaled_sky, out_fn)
+	outfits = pyfits.open('%s.fits' % out_fn)
+	infits = pyfits.open('%s.fits' % in_fn)
+	locations = []
+	for line in lines:
+		locations.append(find_line_peak(infits, line, 5))
+	deviations = []
+	for item in locations:
+		values = outfits[0].data[(item - 50):(item + 50)]
+		deviations.append(std(*values))
+	return avg(*deviations)
+
+def get_alt_std_sky(scale, name, num):
+	scale = float(scale)
+	sky = '%s/sky.1d' % name
+	scaled_sky = '%s/tmp/%s/%s.sky' % (name, num, scale)
+	in_fn = '%s/disp/%s.1d' % (name, num)
+	out_fn = '%s/tmp/%s/%s.1d' % (name, num, scale)
+	sarith(sky, '*', scale, scaled_sky)
+	sarith(in_fn, '-', scaled_sky, out_fn)
+	fits = pyfits.open('%s.fits' % out_fn)
+	loc1 = get_wavelength_location(fits, 5600)
+	loc2 = get_wavelength_location(fits, 7000)
+	deviation = std(*fits[0].data[loc1:loc2])
+	return deviation
+
+def guess_scaling(name, spectra, sky, lines):
 	number = spectra['number']
-	name = '%s/d%s.1d.fits' % (name, zerocount(number))
+	name = '%s/disp/%s.1d.fits' % (name, zerocount(number))
 	skyname = '%s.fits' % sky
 	spectrafits = pyfits.open(name)
 	skyfits = pyfits.open(skyname)
-	#skylines: Na D 5893, OI 5578, OI 6301, OI 6365
-	lines = [5893, 5578, 6301, 6365]
 	scalings = []
 	for line in lines:
-		#spectra_strength = get_wavelength_strength(spectrafits, line)
-		#sky_strength = get_wavelength_strength(skyfits, line)
-		spec_peak, spec_cont = get_peak_cont(spectrafits, line, 3)
-		sky_peak, sky_cont = get_peak_cont(skyfits, line, 3)
+		spec_peak, spec_cont = get_peak_cont(spectrafits, line, 5)
+		sky_peak, sky_cont = get_peak_cont(skyfits, line,   5)
 		scale = ((spec_peak - spec_cont) / (sky_peak - sky_cont))
 		scalings.append(scale)
 	return avg(*scalings)
 
-def get_wavelength_strength(hdulist, wavelength):
+def get_wavelength_location(hdulist, wavelength):
 	headers = hdulist[0].header
 	data = hdulist[0].data
 	start = headers['CRVAL1']
 	step = headers['CDELT1']
 	tmp = wavelength - start
 	number = round(tmp / step)
-	return data[number]
+	return number
 
-def get_peak_cont(hdulist, wavelength, search_scope):
-	headers = hdulist[0].header
+def find_line_peak(hdulist, wavelength, search):
+	number = get_wavelength_location(hdulist, wavelength)
 	data = hdulist[0].data
-	start = headers['CRVAL1']
-	step = headers['CDELT1']
-	tmp = wavelength - start
-	number = round(tmp / step)
-	search = range(int(number - search_scope), int(number + search_scope))
+	search = range(int(number - search), int(number + search))
 	list = [data[i] for i in search]
 	peak = max(list)
 	peak_num = search[list.index(peak)]
+	return peak_num
+
+def get_peak_cont(hdulist, wavelength, search):
+	data = hdulist[0].data
+	peak_num = find_line_peak(hdulist, wavelength, search)
+	peak = data[peak_num]
 	upcont_num = peak_num
 	while True:
 		if data[upcont_num] >= data[upcont_num + 1]:
@@ -251,26 +295,33 @@ def get_peak_cont(hdulist, wavelength, search_scope):
 			downcont_num -= 1
 		else:
 			break
-	cont = avg(data[upcont_num], data[downcont_num])
+	cont = get_continuum(upcont_num, downcont_num, data)
 	return peak, cont
 
-def sky_subtract_galaxy(name, sky='', scale=False):
+def get_continuum(upcont_num, downcont_num, data, search=5):
+	data = data.tolist()
+	values = data[upcont_num:(upcont_num + 3)]
+	values.extend(data[(downcont_num - 3):downcont_num])
+	return rms(*values)
+
+def sky_subtract_galaxy(name, lines):
 	data = get_data(name)
-	if sky == '':
-		sky = get_value(name, 'sky_spectra')
-	if scale == True:
-		for i, item in enumerate(data):
-			scale = get_scaling(name, item, sky)
-			num = zerocount(i)
-			scaled_sky = '%s/sky.1d.%s' % (name, num)
-			sarith(sky, '*', scale, scaled_sky)
-			sarith('%s/d%s.1d' % (name, num), '-', scaled_sky, '%s/ds%s.1d' % 
-				(name, num))
-	else:
-		for i, item in enumerate(data):
-			num = zerocount(i)
-			sarith('%s/d%s.1d' % (name, num), '-', sky, '%sds%s.1d' % 
-				(name, num))
+	sky = '%s/sky.1d' % name
+	os.mkdir('%s/tmp' % name)
+	for i, item in enumerate(data):
+		num = zerocount(i)
+		xopt = float(sky_subtract(name, item, sky, lines))
+		print "\tSolution for %s: %s" % (num, xopt)
+		print "\tSolution divided by width: %s" % (xopt / item['size'])
+		in = '%s/tmp/%s/%s.1d' % (name, num, xopt)
+		insky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
+		out = '%s/sub/%s.1d' % (name, num)
+		outsky  = '%s/sky/%s.sky.1d' % (name, num)
+		imcopy(in, out)
+		imcopy(insky, outsky)	
+		data[i].update{'sky_level':xopt}
+	write_data(name, data)
+	subprocess.call(['rm', '-rf' '%s/tmp' % name])
 
 def print_size(name, list=''):
 	data = get_data(name)
@@ -282,7 +333,7 @@ def print_size(name, list=''):
 def scale_spectra(input, scale, output):
 	sarith(input, '/', scale, output)
 
-def combine_sky_spectra(name, out='sky.1d', scale=False, **kwargs):
+def combine_sky_spectra(name, scale=False, **kwargs):
 	data = get_data(name)
 	list = []
 	for i, item in enumerate(data):
@@ -293,16 +344,15 @@ def combine_sky_spectra(name, out='sky.1d', scale=False, **kwargs):
 		for spectra in list:
 			scale = data[spectra]['size']
 			num = zerocount(spectra)
-			sarith('%s/d%s.1d' % (name, num), '/', scale, 
-				'%s/d%s.1d.scaled' % (name, num))
-			flist.append('%s/d%s.1d.scaled' % (name, num))
+			sarith('%s/disp/%s.1d' % (name, num), '/', scale, 
+				'%s/sky/%s.scaled' % (name, num))
+			flist.append('%s/sky/%s.scaled' % (name, num))
 	else:
 		flist = []
 		for spectra in list:
 			num = zerocount(spectra)
-			flist.append('%s/d%s.1d' % (name, num))
-	scombine(list_convert(flist), '%s/%s' % (name, out), **kwargs)
-	set_value(name, 'sky_spectra', '%s/%s' % (name, out))
+			flist.append('%s/disp/%s.1d' % (name, num))
+	scombine(list_convert(flist), '%s/sky.1d' % name, **kwargs)
 
 def list_convert(list):
 	str = list.pop(0)
