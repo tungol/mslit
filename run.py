@@ -57,13 +57,13 @@ def skies(name, lines):
 def n3_skies():
 	lines = [5893, 5578, 6301, 6365]
 #ngc3169
-	skies('ngc3169', lines)
+	#skies('ngc3169', lines)
 #feige34
-	skies('feige34', lines)
+	#skies('feige34', lines)
 #pg1708+602
-	skies('pg1708+602', lines)
+	#skies('pg1708+602', lines)
 #ngc4725
-	lines.remove('5578')
+	lines.remove(5578)
 	#os.mkdir('ngc4725/sky')
 	#imcopy('ngc3169/sky.1d', 'ngc4725/sky.1d')
 	os.mkdir('ngc4725/sub')

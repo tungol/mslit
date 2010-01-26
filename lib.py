@@ -1,4 +1,4 @@
-import math, os, os.path, scipy.optimize
+import math, os, os.path, scipy.optimize, subprocess
 import simplejson as json
 from pyraf import iraf
 import pyfits
@@ -217,7 +217,7 @@ def sky_subtract(name, spectra, sky, lines):
 def get_std_sky(scale, name, num, lines):
 	scale = float(scale)
 	sky = '%s/sky.1d' % name
-	scaled_sky = '%s/tmp/%s/%s.sky' % (name, num, scale)
+	scaled_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, scale)
 	in_fn = '%s/disp/%s.1d' % (name, num)
 	out_fn = '%s/tmp/%s/%s.1d' % (name, num, scale)
 	sarith(sky, '*', scale, scaled_sky)
@@ -313,15 +313,15 @@ def sky_subtract_galaxy(name, lines):
 		xopt = float(sky_subtract(name, item, sky, lines))
 		print "\tSolution for %s: %s" % (num, xopt)
 		print "\tSolution divided by width: %s" % (xopt / item['size'])
-		in = '%s/tmp/%s/%s.1d' % (name, num, xopt)
+		in_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
 		insky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
-		out = '%s/sub/%s.1d' % (name, num)
+		out_fn = '%s/sub/%s.1d' % (name, num)
 		outsky  = '%s/sky/%s.sky.1d' % (name, num)
-		imcopy(in, out)
+		imcopy(in_fn, out_fn)
 		imcopy(insky, outsky)	
-		data[i].update{'sky_level':xopt}
+		data[i].update({'sky_level':xopt})
 	write_data(name, data)
-	subprocess.call(['rm', '-rf' '%s/tmp' % name])
+	subprocess.call(['rm', '-rf', '%s/tmp' % name])
 
 def print_size(name, list=''):
 	data = get_data(name)
