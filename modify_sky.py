@@ -8,7 +8,6 @@ def main(name, number, op, value):
 	i = int(number)
 	num = zerocount(i)
 	value = float(value)
-	os.mkdir('%s/tmp' % name)
 	data = get_data(name)
 	item = data[i]
 	sky_level = item['sky_level']
@@ -18,6 +17,7 @@ def main(name, number, op, value):
 		new_sky_level = sky_level - value
 	data[i].update({'sky_level':new_sky_level})
 	write_data(name, data)
+	os.mkdir('%s/tmp' % name)
 	regenerate_sky(name, i, data)
 	subprocess.call(['rm', '-rf', '%s/tmp' % name])
 
