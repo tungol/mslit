@@ -304,22 +304,41 @@ def get_continuum(upcont_num, downcont_num, data, search=5):
 	values.extend(data[(downcont_num - 3):downcont_num])
 	return rms(*values)
 
+def regenerate_sky(name, i, data):
+	num = zerocount(i)
+	sky_level = data[i]['sky_level']
+	in_sky = '%s/sky.1d' % name
+	tmp_sky = '%s/tmp/%s.sky.1d' % (name, num)
+	in_fn = '%s/disp/%s.1d' % (name, num)
+	tmp_fn = '%s/tmp/%s.1d' % (name, num)
+	sarith(in_sky, '*', sky_level, tmp_sky)
+	sarith(in_fn, '-', tmp_sky, tmp_fn)
+	out_fn = '%s/sub/%s.1d' % (name, num)
+	out_sky = '%s/sky/%s.sky.1d' % (name, num)
+	subprocess.call(['rm', '-f', '%s.fits' % out_fn])
+	subprocess.call(['rm', '-f', '%s.fits' % out_sky])
+	imcopy(tmp_sky, out_sky)
+	imcopy(tmp_fn, out_fn)
+
 def sky_subtract_galaxy(name, lines):
 	data = get_data(name)
 	sky = '%s/sky.1d' % name
 	os.mkdir('%s/tmp' % name)
 	for i, item in enumerate(data):
-		num = zerocount(i)
-		xopt = float(sky_subtract(name, item, sky, lines))
-		print "\tSolution for %s: %s" % (num, xopt)
-		print "\tSolution divided by width: %s" % (xopt / item['size'])
-		in_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
-		insky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
-		out_fn = '%s/sub/%s.1d' % (name, num)
-		outsky  = '%s/sky/%s.sky.1d' % (name, num)
-		imcopy(in_fn, out_fn)
-		imcopy(insky, outsky)	
-		data[i].update({'sky_level':xopt})
+		if item.has_key('sky_level'):
+			regenerate_sky(name, i, data)
+		else:
+			num = zerocount(i)
+			xopt = float(sky_subtract(name, item, sky, lines))
+			print "\tSolution for %s: %s" % (num, xopt)
+			print "\tSolution divided by width: %s" % (xopt / item['size'])
+			tmp_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
+			tmp_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
+			out_fn = '%s/sub/%s.1d' % (name, num)
+			out_sky  = '%s/sky/%s.sky.1d' % (name, num)
+			imcopy(tmp_fn, out_fn)
+			imcopy(tmp_sky, out_sky)	
+			data[i].update({'sky_level':xopt})
 	write_data(name, data)
 	subprocess.call(['rm', '-rf', '%s/tmp' % name])
 
@@ -360,14 +379,18 @@ def list_convert(list):
 		str += ', %s' % item
 	return str
 
-def calibrate_galaxy(name, calibration, prefix=''):
+def setairmass_galaxy(name):
 	data = get_data(name)
-	os.chdir(name)
-	sens = os.path.combine(BASE, '%s/%s.sens' % (calibration, calibration))
 	for i, item in enumerate(data):
 		num = zerocount(i)
-		calibrate('%sds%s.1d' % (prefix, num), sens, '%sdsc%s.1d' % (prefix, num))
-	os.chdir('..')
+		setairmass('%s/sub/%s.1d' % (name, num))
+
+def calibrate_galaxy(name, calibration, prefix=''):
+	data = get_data(name)
+	sens = '%s/sens' % calibration
+	for i, item in enumerate(data):
+		num = zerocount(i)
+		calibrate('%s/sub/%s.1d' % (name, num), '%s/cal/%s.1d' % (name, num))
 
 def zerocount(i):
 	if i < 10:
@@ -385,6 +408,10 @@ def fix_galaxy(name, mask):
 	imcopy('@lists/%s' % name, '%s/@lists/%s' % (name, name))
 	fix_image('%s/@lists/%s' % (name, name), mask)
 	
+def setairmass(images, **kwargs):
+	load_kpnoslit()
+	iraf.setairmass.unlearn()
+	iraf.setairmass(images=images, **kwargs)
 
 def fixpix(image, mask, **kwargs):
 	iraf.fixpix.unlearn()

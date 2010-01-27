@@ -48,28 +48,31 @@ def n3_dispersion():
 	disp_galaxy('pg1708+602')
 	disp_galaxy('ngc4725')
 
-def skies(name, lines):
-	#os.mkdir('%s/sky' % name)
-	#combine_sky_spectra(name, scale=True)
+def skies(name, lines, use=''):
+	os.mkdir('%s/sky' % name)
+	if use == '':
+		combine_sky_spectra(name, scale=True)
+	els:
+		imcopy('%s/sky.1d' % use, '%s/sky.1d' % name)
 	os.mkdir('%s/sub' % name)
 	sky_subtract_galaxy(name, lines)
+	setairmass_galaxy(name)
 
 def n3_skies():
 	lines = [5893, 5578, 6301, 6365]
 #ngc3169
-	#skies('ngc3169', lines)
+	skies('ngc3169', lines)
 #feige34
-	#skies('feige34', lines)
+	skies('feige34', lines)
 #pg1708+602
-	#skies('pg1708+602', lines)
+	skies('pg1708+602', lines)
 #ngc4725
 	lines.remove(5578)
-	#os.mkdir('ngc4725/sky')
-	#imcopy('ngc3169/sky.1d', 'ngc4725/sky.1d')
-	os.mkdir('ngc4725/sub')
-	sky_subtract_galaxy('ngc4725', lines)
+	skies('ngc4725', lines, use='ngc3169')
 
 def n3_calibrate():
+	os.mkdir('ngc3169/cal')
+	os.mkdir('ngc4725/cal')
 	calibrate_galaxy('ngc3169', 'feige34')
 	calibrate_galaxy('ngc4725', 'pg1708+602')
 

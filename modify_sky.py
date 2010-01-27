@@ -2,6 +2,9 @@ import sys
 from lib import *
 
 def main(name, number, op, value):
+	location = "../n3"
+	os.chdir(location)
+	set_BASE(os.getcwd())
 	i = int(number)
 	num = zerocount(i)
 	value = float(value)
@@ -9,19 +12,13 @@ def main(name, number, op, value):
 	data = get_data(name)
 	item = data[i]
 	sky_level = item['sky_level']
-	if op = '+':
+	if op == '+':
 		new_sky_level = sky_level + value
-	elif op = '-':
+	elif op == '-':
 		new_sky_level = sky_level - value
-	sky = '%s/sky.1d' % name
-	scaled_sky = '%s/tmp/%s.sky.1d' % (name, num)
-	in_fn = '%s/disp/%s.1d' % (name, num)
-	out_fn = '%s/tmp/%s.1d' % (name, num)
-	sarith(sky, '*', scale, scaled_sky)
-	sarith(in_fn, '-', scaled_sky, out_fn)
-	loc = '%s/sub/%s.1d' % (name, num)
-	sky_loc = '%s/sky/%s.sky.1d' % (name, num)
-	subprocess.call(['rm', '-f', '%s.fits' % loc]) 
-	subprocess.call(['rm', '-f', '%s.fits' % sky_loc]) 
-	imcopy(scaled_sky, sky_loc, verbose='false')
-	imcopy(out_fn, loc, verbose='false')
+	data[i].update({'sky_level':new_sky_level})
+	write_data(name, data)
+	regenerate_sky(name, i, data)
+	subprocess.call(['rm', '-rf', '%s/tmp' % name])
+
+main(*sys.argv[1:])
