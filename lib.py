@@ -390,7 +390,7 @@ def calibrate_galaxy(name, calibration, prefix=''):
 	sens = '%s/sens' % calibration
 	for i, item in enumerate(data):
 		num = zerocount(i)
-		calibrate('%s/sub/%s.1d' % (name, num), '%s/cal/%s.1d' % (name, num))
+		calibrate('%s/sub/%s.1d' % (name, num), sens, '%s/cal/%s.1d' % (name, num))
 
 def zerocount(i):
 	if i < 10:
