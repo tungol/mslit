@@ -389,7 +389,7 @@ def get_pixel_sizes(name):
 	data = {}
 	for line in raw:
 		column, start, end = line.strip().split(',')
-		data.update{column:{'start':start, 'end':end}}
+		data.update({column:{'start':start, 'end':end}})
 	return data
 
 ## Functions for basic manipulation ##
@@ -470,7 +470,7 @@ def get_coord(pixel_sizes, real_start, real_end):
 		for item in data:
 			start = convert(item['xlo'])
 			end = convert(item['xhi'])
-			coord[column].append({'start':start, 'end':end}]
+			coord[column].append({'start':start, 'end':end})
 	return coord
 
 def get_sections(raw_data):
