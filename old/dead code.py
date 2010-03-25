@@ -59,3 +59,18 @@ def get_std_sky_alt(scale, name, num):
 
 def scale_spectra(input, scale, output):
 	sarith(input, '/', scale, output)
+
+def get_data_old(name):
+	raw_data = get_raw_data(name)
+	if 'data' not in raw_data:
+		types = raw_data['types'][:]
+		angles = get_angles(raw_data['coord'])
+		sections, size = get_sections(raw_data['coord'])
+		data = []
+		for i, angle in enumerate(angles):
+			data.append({'angle':angle, 'section':sections[i], 
+				'size':size[i], 'type':types[i], 'number':i})
+		write_data(name, data)
+	else:
+		data = raw_data['data']
+	return data

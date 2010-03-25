@@ -253,15 +253,16 @@ def sky_subtract_galaxy(name, lines):
 
 ## High level functions grouping together several options ##
 
-def zero_flats(mask):
-	"""This function combines the zeros and flats for a night,
-	then applies the bad pixel mask specified."""
-	zerocombine("@lists/zero")
-	flatcombine("@lists/flat1", output = "Flat1")
-	flatcombine("@lists/flat2", output = "Flat2")
-	fix_image('Flat1', mask)
-	fix_image('Flat2', mask)
-	fix_image('Zero', mask)
+def calibration(name, standard):
+	"""Calibrates all spectra in name with the standard specified"""
+	os.mkdir('%s/cal' % name)
+	calibrate_galaxy(name, standard)
+
+def disp_galaxy(name):
+	"""Applies dispersion correction across all spectra in name"""
+	os.mkdir('%s/disp' % name)
+	hedit_galaxy(name)
+	dispcor_galaxy(name)
 
 def init_galaxy(name, mask, zero, flat):
 	"""Applies a bad pixel mask to all the images associated with name, 
@@ -271,26 +272,11 @@ def init_galaxy(name, mask, zero, flat):
 	ccdproc('%s/@lists/%s' % (name, name), zero=zero, flat=flat)
 	combine('%s/@lists/%s' % (name, name), '%s/base' % name)
 
-def slice_galaxy(name, comp):
-	"""Seperates the individuals slices of a galaxy out, 
-	and creates one dimensional spectra"""
-	rotate_galaxy(name, comp)
-	imcopy_galaxy(name)
-	apsum_galaxy(name)
-	#needed for next step
-	os.makedirs('database/id%s/sum' % name)
-
-def disp_galaxy(name):
-	"""Applies dispersion correction across all spectra in name"""
-	os.mkdir('%s/disp' % name)
-	hedit_galaxy(name)
-	dispcor_galaxy(name)
-
-def skies(name, lines, use=''):
+def skies(name, lines, use=None):
 	"""Create a combined sky spectra, sky subtracts all object spectra, 
 	and sets airmass metadata"""
 	os.mkdir('%s/sky' % name)
-	if use == '':
+	if use == None:
 		combine_sky_spectra(name, scale=True)
 	else:
 		imcopy('%s/sky.1d' % use, '%s/sky.1d' % name)
@@ -298,10 +284,25 @@ def skies(name, lines, use=''):
 	sky_subtract_galaxy(name, lines)
 	setairmass_galaxy(name)
 
-def calibration(name, standard):
-	"""Calibrates all spectra in name with the standard specified"""
-	os.mkdir('%s/cal' % name)
-	calibrate_galaxy(name, standard)
+def slice_galaxy(name, comp, use=None):
+	"""Separates the individuals slices of a galaxy out, 
+	and creates one dimensional spectra"""
+	init_data(name, use=use)
+	rotate_galaxy(name, comp)
+	imcopy_galaxy(name)
+	apsum_galaxy(name)
+	#needed for next step
+	os.makedirs('database/id%s/sum' % name)
+
+def zero_flats(mask):
+	"""This function combines the zeros and flats for a night,
+	then applies the bad pixel mask specified."""
+	zerocombine("@lists/zero")
+	flatcombine("@lists/flat1", output = "Flat1")
+	flatcombine("@lists/flat2", output = "Flat2")
+	fix_image('Flat1', mask)
+	fix_image('Flat2', mask)
+	fix_image('Zero', mask)
 
 ## Functions to smooth over the interface to IRAF ##
 
@@ -380,6 +381,7 @@ def read_out_file(name):
 	out_file = open(fn, 'r')
 	raw_out = out_file.readlines()
 	out_file.close()
+	return raw_out
 
 def get_pixel_sizes(name):
 	fn = os.path.join(BASE, 'input/%s.pix' % name)
@@ -394,44 +396,32 @@ def get_pixel_sizes(name):
 
 ## Functions for basic manipulation ##
 
-def get_data_old(name):
-	raw_data = get_raw_data(name)
-	if 'data' not in raw_data:
-		types = raw_data['types'][:]
-		angles = get_angles(raw_data['coord'])
-		sections, size = get_sections(raw_data['coord'])
-		data = []
-		for i, angle in enumerate(angles):
-			data.append({'angle':angle, 'section':sections[i], 
-				'size':size[i], 'type':types[i], 'number':i})
-		write_data(name, data)
-	else:
-		data = raw_data['data']
-	return data
-
 def get_data(name):
-	try:
-		raw = get_raw_data(name)
-		data = raw['data']
-	except ValueError, IOError:
-		data = parse_out_file(raw_out)
-		pixel_sizes = get_pixel_sizes(name)
-		real_start = float(data[0]['xlo'])
-		real_end = float(data[-1]['xhi'])
-		coord = get_coord(pixel_sizes, real_start, real_end)
-		angles = get_angles(coord)
-		sections, sizes = get_sections(coord)
-		for i, angle in enumerate(angles):
-			data[i].update({'angle':angle, 'section':sections[i], 
-				'size':sizes[i]})
-		write_data(name, data)
+	raw = get_raw_data(name)
+	data = raw['data']
 	return data
 
+def init_data(name, use=None):
+	save = name
+	if use:
+		name = use
+	raw_out = read_out_file(name)
+	data = parse_out_file(raw_out)
+	pixel_sizes = get_pixel_sizes(name)
+	real_start = float(data[0]['xlo'])
+	real_end = float(data[-1]['xhi'])
+	coord = get_coord(pixel_sizes, real_start, real_end, data)
+	angles = get_angles(coord)
+	sections, sizes = get_sections(coord)
+	for i, angle in enumerate(angles):
+		data[i].update({'angle':angle, 'section':sections[i], 
+			'size':sizes[i]})
+	write_data(save, data)
 
 def write_data(name, data):
 	try:
 		raw_data = get_raw_data(name)
-	except ValueError:
+	except (ValueError, IOError):
 		raw_data = {}
 	raw_data.update({'data':data})
 	write_raw_data(name, raw_data)
@@ -456,13 +446,14 @@ def get_angles(raw_data):
 		angles.append(math.degrees(math.atan(slope)))
 	return angles
 
-def get_coord(pixel_sizes, real_start, real_end):
+def get_coord(pixel_sizes, real_start, real_end, data):
 	real_size = real_end - real_start
 	coord = {}
 	for column in pixel_sizes:
 		def convert(real_value):
-			pixel_start = pixel_sizes[column]['start']
-			pixel_end = pixel_sizes[column]['end']
+			real_value = float(real_value)
+			pixel_start = float(pixel_sizes[column]['start'])
+			pixel_end = float(pixel_sizes[column]['end'])
 			pixel_size = pixel_end - pixel_start
 			return (((real_value - real_start) * 
 				(pixel_size / real_size)) + pixel_start)
@@ -484,13 +475,21 @@ def get_sections(raw_data):
 		end1 = item1['end']
 		start2 = item2['start']
 		end2 = item2['end']
-		start = int(round(avg(start1, start2)))
-		end = int(round(avg(end1, end2)))
+		start = avg(start1, start2)
+		if math.modf(start)[0] < 0.25:
+			start = int(math.floor(start))
+		else:
+			start = int(math.ceil(start))
+		end = avg(end1, end2)
+		if math.modf(end)[0] > 0.75:
+			end = int(math.ceil(end))
+		else:
+			end = int(math.floor(end))
 		sections.append('[1:2048,%s:%s]' % (start, end))
 		size.append(end - start)
 	return sections, size
 
-def parse_out_file(raw):
+def parse_out_file(raw_out):
 	data = []
 	header = raw_out.pop(0)
 	headers = header.split()
@@ -511,7 +510,7 @@ def parse_out_file(raw):
 ## Functions related to sky subtraction ##
 ##########################################
 
-## Functions for manipulating the fits data directly ##
+## Functions for manipulating the fits data at a low level ##
 
 def find_line_peak(hdulist, wavelength, search):
 	number = get_wavelength_location(hdulist, wavelength)
@@ -614,7 +613,8 @@ def sky_subtract(name, spectra, sky, lines):
 	guess = guess_scaling(name, spectra, sky, lines)
 	# fmin
 	os.mkdir('%s/tmp/%s' % (name, num))
-	xopt = scipy.optimize.fmin(get_std_sky, guess, args=(name, num, lines), xtol=0.001)
+	xopt = scipy.optimize.fmin(get_std_sky, guess, 
+		args=(name, num, lines), xtol=0.001)
 	return xopt
 
 ## Other functions relating to sky subtraction ##
