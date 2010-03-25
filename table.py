@@ -1,4 +1,4 @@
-import os, math
+import os, math, pylab
 
 class MeasurementClass:
 	def __init__(self, line):
@@ -46,12 +46,16 @@ class SpectrumClass:
                         '[S II] 6731': 'SII2', '[O III] 4363': 'OIII3'}
 		self.diagnostics = { 
 			'r23': (lambda s: (s.OII.flux + s.OIII1.flux + s.OIII2.flux) / s.hbeta.flux), 
-			'a23': (lambda s: (s.OIII1.flux + s.OIII2.flux) / s.OII.flux),
+			#'a23': (lambda s: (s.OIII1.flux + s.OIII2.flux) / s.OII.flux),
 			'NII2 / halpha': (lambda s: s.NII2.flux / s.halpha.flux),
 			'OIII2 / NII2': (lambda s: s.OIII2.flux / s.NII2.flux),
 			'NII2 / OII': (lambda s: s.NII2.flux / s.OII.flux),
 			'OIII2 / OII': (lambda s: s.OIII2.flux / s.OII.flux),
-			'halpha / hbeta': (lambda s: s.halpha.flux / self.hbeta.flux)}
+			#'halpha / hbeta': (lambda s: s.halpha.flux / self.hbeta.flux),
+			# E(B-V) is already calculated by the time this is used
+			'E(B - V)': (lambda s: s.E),
+			# halpha calibration given by Kennicutt 1998
+			'SFR(M$_\odot$ / year)': (lambda s: 7.9 * 10 ** -42 * s.halpha.flux)}
 
 	def __lt__(self, other):
 		return self.num.__lt__(other)
@@ -103,6 +107,8 @@ class SpectrumClass:
 			try:
 				self.__dict__[key] = value(self)
 			except ZeroDivisionError:
+				self.__dict__[key] = 'INDEF'
+			except AttributeError:
 				self.__dict__[key] = 'INDEF'
 
 	def correct_extinction(self):
@@ -216,10 +222,14 @@ class ImageClass:
 		file.write('\\documentclass{article}\n')
 		file.write('\\usepackage{rotating}\n')
 		file.write('\\usepackage{booktabs}\n')
+		file.write('\\usepackage{graphicx}\n')
 		file.write('\\begin{document}\n')
 		self.make_table(spectra, keys[:6], file)
 		self.make_table(spectra, keys[6:], file)
 		self.make_table(spectra, diagnostics, file)
+		diagnostics.remove('r23')
+		for item in diagnostics:
+			self.make_graph(spectra, ('r23', item), file)
 		file.write('\\end{document}\n')
 		file.close()
 
@@ -237,15 +247,53 @@ class ImageClass:
 				file.write(' %s ' % item.num)
 				for line in keys:
 					if type(item.__dict__[line]) in (float, str):
-						file.write('& %s ' % scinot(item.__dict__[line]))
+						file.write('& %s ' % item.__dict__[line])
 					else:
-						file.write('& %s ' % scinot(item.__dict__[line].flux))
+						file.write('& %s ' % item.__dict__[line].flux)
 				file.write('\\\\\n')
 		file.write('\\bottomrule\n')
 		file.write('\\end{tabular}\n')
 		file.write('\\end{sidewaystable}\n')
 		
+	def make_graph(self, spectra, pair, file):
+		data1 = []
+		data2 = []
+		for item in spectra:
+			data1.append(item.__dict__[pair[0]])
+		for item in spectra:
+			data2.append(item.__dict__[pair[1]])
+		while True:
+			try:
+				i = data1.index("INDEF")
+				data1.pop(i)
+				data2.pop(i)
+			except ValueError:
+				break
+		while True:
+			try:
+				i = data2.index('INDEF')
+				data2.pop(i)
+				data1.pop(i)
+			except ValueError:
+				break
+		i = get_graph_number()
+		pylab.figure(figsize=(10,10), num=i)
+		pylab.subplots_adjust(left=0.1)
+		pylab.plot(data1, data2, 'x')
+		pylab.xlabel(pair[0])
+		pylab.ylabel(pair[1])
+		name = '%s_%s.eps' % (self.name, i)
+		pylab.savefig('tables/%s' % name, format='eps')
+		file.write('\\includegraphics[scale=0.6]{%s}\n' % name)
 
+def get_graph_number():
+	global graph_number
+	try:
+		graph_number += 1
+		return graph_number
+	except NameError:
+		graph_number = 0
+		return graph_number
 
 def scinot(value):
 	value = str(value)

@@ -1,54 +1,15 @@
 import sys, os, math, subprocess, time
 import simplejson as json
 from pyraf import iraf
-from lib import *
-
-def zero_flats(mask):
-	zerocombine("@lists/zero")
-	flatcombine("@lists/flat1", output = "Flat1")
-	flatcombine("@lists/flat2", output = "Flat2")
-	fix_image('Flat1', mask)
-	fix_image('Flat2', mask)
-	fix_image('Zero', mask)
-
-def init_galaxy(name, mask, zero, flat):
-	os.mkdir(name)
-	fix_galaxy(name, mask)
-	ccdproc('%s/@lists/%s' % (name, name), zero=zero, flat=flat)
-	combine('%s/@lists/%s' % (name, name), '%s/base' % name)
-
-def slice_galaxy(name, comp):
-	rotate_galaxy(name, comp)
-	imcopy_galaxy(name)
-	apsum_galaxy(name)
-	#needed for next step
-	os.makedirs('database/id%s/sum' % name)
-
-def disp_galaxy(name):
-	os.mkdir('%s/disp' % name)
-	hedit_galaxy(name)
-	dispcor_galaxy(name)
-
-def skies(name, lines, use=''):
-	os.mkdir('%s/sky' % name)
-	if use == '':
-		combine_sky_spectra(name, scale=True)
-	else:
-		imcopy('%s/sky.1d' % use, '%s/sky.1d' % name)
-	os.mkdir('%s/sub' % name)
-	sky_subtract_galaxy(name, lines)
-	setairmass_galaxy(name)
-
-def calibration(name, standard):
-	os.mkdir('%s/cal' % name)
-	calibrate_galaxy(name, standard)
+from div3lib import zero_flats, init_galaxy, slice_galaxy
+from div3lib import disp_galaxy, skies, calbration, set_BASE
 
 def n3_initial():
-	zero_flats('Mask2.pl')
-	init_galaxy('ngc4725', 'Mask2.pl', 'Zero', 'Flat2')
-	init_galaxy('ngc3169', 'Mask2.pl', 'Zero', 'Flat1')
-	init_galaxy('feige34', 'Mask2.pl', 'Zero', 'Flat1')
-	init_galaxy('pg1708+602', 'Mask2.pl', 'Zero', 'Flat2')
+	zero_flats('Mask.pl')
+	init_galaxy('ngc4725', 'Mask.pl', 'Zero', 'Flat2')
+	init_galaxy('ngc3169', 'Mask.pl', 'Zero', 'Flat1')
+	init_galaxy('feige34', 'Mask.pl', 'Zero', 'Flat1')
+	init_galaxy('pg1708+602', 'Mask.pl', 'Zero', 'Flat2')
 	
 def n3_slices():
 	slice_galaxy('ngc4725', 'henear2')
@@ -78,7 +39,7 @@ def n3():
 	location = "../n3"
 	os.chdir(location)
 	set_BASE(os.getcwd())
-	#n3_initial()
+	n3_initial()
 	#then make sure that you've got strip coordinate files
 	#n3_slices()
 	#then identify everything
@@ -130,4 +91,4 @@ def n6():
 	#then run standard and sensfunc manually
 	#n6_calibrate()
 
-n6()
+n3()
