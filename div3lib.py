@@ -228,7 +228,8 @@ def setairmass_galaxy(name):
 	data = get_data(name)
 	for i, item in enumerate(data):
 		num = zerocount(i)
-		setairmass('%s/sub/%s.1d' % (name, num))
+		if item['type'] == 'HIIREGION':
+			setairmass('%s/sub/%s.1d' % (name, num))
 
 def sky_subtract_galaxy(name, lines):
 	data = get_data(name)
@@ -268,7 +269,7 @@ def skies(name, lines, use=None, obj=None):
 	"""Create a combined sky spectra, sky subtracts all object spectra, 
 	and sets airmass metadata"""
 	if obj:
-		set_obj(name)
+		set_obj(name, obj)
 	os.mkdir('%s/sky' % name)
 	combine_sky_spectra(name, use=use)
 	os.mkdir('%s/sub' % name)
@@ -591,9 +592,9 @@ def guess_scaling(name, spectra, sky, lines):
 ## Functions wrapping the solvers and providing output ##
 
 def generate_sky(name, item, lines):
-	in_sky = '%s/sky.1d' % name
-	xopt = sky_subtract(name, item, sky, lines)
-	print type(xopt)
+	num = zerocount(item['number'])
+	sky = '%s/sky.1d' % name
+	xopt = float(sky_subtract(name, item, sky, lines))
 	print "\tSolution for %s: %s" % (num, xopt)
 	print "\tSolution divided by width: %s" % (xopt / item['size'])
 	tmp_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
@@ -605,6 +606,7 @@ def generate_sky(name, item, lines):
 	item.update({'sky_level':xopt})
 
 def regenerate_sky(name, item):
+	num = zerocount(item['number'])
 	sky_level = item['sky_level']
 	in_fn = '%s/disp/%s.1d' % (name, num)
 	in_sky = '%s/sky.1d' % name

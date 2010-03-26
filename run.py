@@ -38,11 +38,11 @@ def n3():
 	location = "../n3"
 	os.chdir(location)
 	set_BASE(os.getcwd())
-	#n3_initial()
-	#n3_slices()
+	n3_initial()
+	n3_slices()
 	#then identify everything
 	n3_dispersion()
-	#n3_skies()
+	n3_skies()
 	#then run standard and sensfunc manually
 	#n3_calibrate()
 	#now go measure line strengths with splot
