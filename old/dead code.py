@@ -74,3 +74,24 @@ def get_data_old(name):
 	else:
 		data = raw_data['data']
 	return data
+
+def combine_sky_spectra(name, scale=False, **kwargs):
+	data = get_data(name)
+	list = []
+	for i, item in enumerate(data):
+		if item['type'] == 'NIGHTSKY':
+			list.append(i)
+	if scale == True:
+		flist = []
+		for spectra in list:
+			scale = data[spectra]['size']
+			num = zerocount(spectra)
+			sarith('%s/disp/%s.1d' % (name, num), '/', scale, 
+				'%s/sky/%s.scaled' % (name, num))
+			flist.append('%s/sky/%s.scaled' % (name, num))
+	else:
+		flist = []
+		for spectra in list:
+			num = zerocount(spectra)
+			flist.append('%s/disp/%s.1d' % (name, num))
+	scombine(list_convert(flist), '%s/sky.1d' % name, **kwargs)

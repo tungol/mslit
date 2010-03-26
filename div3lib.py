@@ -195,12 +195,14 @@ def fix_galaxy(name, mask):
 	imcopy('@lists/%s' % name, '%s/@lists/%s' % (name, name))
 	fix_image('%s/@lists/%s' % (name, name), mask)
 
-def hedit_galaxy(name):
+def hedit_galaxy(name, use=None):
 	data = get_data(name)
+	if not use:
+		use = name
 	for i, item in enumerate(data):
 		num = zerocount(i)
 		hedit('%s/sum/%s.1d' % (name, num), 'REFSPEC1', 
-			'%s/sum/%sc.1d' % (name, num))
+			'%s/sum/%sc.1d' % (use, num))
 
 def imcopy_galaxy(name):
 	data = get_data(name)
@@ -233,21 +235,11 @@ def sky_subtract_galaxy(name, lines):
 	sky = '%s/sky.1d' % name
 	os.mkdir('%s/tmp' % name)
 	for i, item in enumerate(data):
-		if item.has_key('sky_level'):
-			regenerate_sky(name, i, data)
-		else:
-			num = zerocount(i)
-			xopt = float(sky_subtract(name, item, sky, lines))
-			print "\tSolution for %s: %s" % (num, xopt)
-			print "\tSolution divided by width: %s" % (
-				xopt / item['size'])
-			tmp_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
-			tmp_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
-			out_fn = '%s/sub/%s.1d' % (name, num)
-			out_sky  = '%s/sky/%s.sky.1d' % (name, num)
-			imcopy(tmp_fn, out_fn)
-			imcopy(tmp_sky, out_sky)	
-			data[i].update({'sky_level':xopt})
+		if item['type'] == 'HIIREGION':
+			if item.has_key('sky_level'):
+				regenerate_sky(name, item)
+			else:
+				generate_sky(name, item, lines)
 	write_data(name, data)
 	subprocess.call(['rm', '-rf', '%s/tmp' % name])
 
@@ -258,10 +250,10 @@ def calibration(name, standard):
 	os.mkdir('%s/cal' % name)
 	calibrate_galaxy(name, standard)
 
-def disp_galaxy(name):
+def disp_galaxy(name, use=None):
 	"""Applies dispersion correction across all spectra in name"""
 	os.mkdir('%s/disp' % name)
-	hedit_galaxy(name)
+	hedit_galaxy(name, use=use)
 	dispcor_galaxy(name)
 
 def init_galaxy(name, mask, zero, flat):
@@ -272,14 +264,13 @@ def init_galaxy(name, mask, zero, flat):
 	ccdproc('%s/@lists/%s' % (name, name), zero=zero, flat=flat)
 	combine('%s/@lists/%s' % (name, name), '%s/base' % name)
 
-def skies(name, lines, use=None):
+def skies(name, lines, use=None, obj=None):
 	"""Create a combined sky spectra, sky subtracts all object spectra, 
 	and sets airmass metadata"""
+	if obj:
+		set_obj(name)
 	os.mkdir('%s/sky' % name)
-	if use == None:
-		combine_sky_spectra(name, scale=True)
-	else:
-		imcopy('%s/sky.1d' % use, '%s/sky.1d' % name)
+	combine_sky_spectra(name, use=use)
 	os.mkdir('%s/sub' % name)
 	sky_subtract_galaxy(name, lines)
 	setairmass_galaxy(name)
@@ -402,12 +393,11 @@ def get_data(name):
 	return data
 
 def init_data(name, use=None):
-	save = name
-	if use:
-		name = use
-	raw_out = read_out_file(name)
+	if not use:
+		use = name
+	raw_out = read_out_file(use)
 	data = parse_out_file(raw_out)
-	pixel_sizes = get_pixel_sizes(name)
+	pixel_sizes = get_pixel_sizes(use)
 	real_start = float(data[0]['xlo'])
 	real_end = float(data[-1]['xhi'])
 	coord = get_coord(pixel_sizes, real_start, real_end, data)
@@ -416,7 +406,15 @@ def init_data(name, use=None):
 	for i, angle in enumerate(angles):
 		data[i].update({'angle':angle, 'section':sections[i], 
 			'size':sizes[i]})
-	write_data(save, data)
+	write_data(name, data)
+
+def set_obj(name, obj):
+	data = get_data(name)
+	for i, item in enumerate(data):
+		if i != obj:
+			if item['type'] == 'HIIREGION':
+				item['type'] = 'NIGHTSKY'
+	write_data(name, data)
 
 def write_data(name, data):
 	try:
@@ -592,13 +590,26 @@ def guess_scaling(name, spectra, sky, lines):
 
 ## Functions wrapping the solvers and providing output ##
 
-def regenerate_sky(name, i, data):
-	num = zerocount(i)
-	sky_level = data[i]['sky_level']
+def generate_sky(name, item, lines):
 	in_sky = '%s/sky.1d' % name
-	tmp_sky = '%s/tmp/%s.sky.1d' % (name, num)
+	xopt = sky_subtract(name, item, sky, lines)
+	print type(xopt)
+	print "\tSolution for %s: %s" % (num, xopt)
+	print "\tSolution divided by width: %s" % (xopt / item['size'])
+	tmp_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
+	tmp_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
+	out_fn = '%s/sub/%s.1d' % (name, num)
+	out_sky  = '%s/sky/%s.sky.1d' % (name, num)
+	imcopy(tmp_fn, out_fn)
+	imcopy(tmp_sky, out_sky)	
+	item.update({'sky_level':xopt})
+
+def regenerate_sky(name, item):
+	sky_level = item['sky_level']
 	in_fn = '%s/disp/%s.1d' % (name, num)
+	in_sky = '%s/sky.1d' % name
 	tmp_fn = '%s/tmp/%s.1d' % (name, num)
+	tmp_sky = '%s/tmp/%s.sky.1d' % (name, num)
 	sarith(in_sky, '*', sky_level, tmp_sky)
 	sarith(in_fn, '-', tmp_sky, tmp_fn)
 	out_fn = '%s/sub/%s.1d' % (name, num)
@@ -619,23 +630,19 @@ def sky_subtract(name, spectra, sky, lines):
 
 ## Other functions relating to sky subtraction ##
 
-def combine_sky_spectra(name, scale=False, **kwargs):
-	data = get_data(name)
+def combine_sky_spectra(name, use=None, **kwargs):
+	if not use:
+		use = name
+	data = get_data(use)
 	list = []
 	for i, item in enumerate(data):
 		if item['type'] == 'NIGHTSKY':
 			list.append(i)
-	if scale == True:
-		flist = []
-		for spectra in list:
-			scale = data[spectra]['size']
-			num = zerocount(spectra)
-			sarith('%s/disp/%s.1d' % (name, num), '/', scale, 
-				'%s/sky/%s.scaled' % (name, num))
-			flist.append('%s/sky/%s.scaled' % (name, num))
-	else:
-		flist = []
-		for spectra in list:
-			num = zerocount(spectra)
-			flist.append('%s/disp/%s.1d' % (name, num))
+	flist = []
+	for spectra in list:
+		scale = data[spectra]['size']
+		num = zerocount(spectra)
+		sarith('%s/disp/%s.1d' % (use, num), '/', scale, 
+			'%s/sky/%s.scaled' % (name, num))
+		flist.append('%s/sky/%s.scaled' % (name, num))
 	scombine(list_convert(flist), '%s/sky.1d' % name, **kwargs)

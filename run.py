@@ -18,18 +18,17 @@ def n3_slices():
 	slice_galaxy('pg1708+602', 'henear2', use='ngc4725')
 	
 def n3_dispersion():
-	disp_galaxy('feige34')
+	disp_galaxy('feige34', use='ngc3169')
 	disp_galaxy('ngc3169')
 	disp_galaxy('ngc4725')
-	disp_galaxy('pg1708+602')
+	disp_galaxy('pg1708+602', use='ngc4725')
 
 def n3_skies():
 	lines = [5893, 5578, 6301, 6365]
+	skies('feige34', lines, obj=10)
 	skies('ngc3169', lines)
-	skies('feige34', lines)
-	skies('pg1708+602', lines)
-	lines.remove(5578)
-	skies('ngc4725', lines, use='ngc3169')
+	skies('ngc4725', lines)
+	skies('pg1708+602', lines, obj=20)
 
 def n3_calibrate():
 	calibration('ngc3169', 'feige34')
@@ -39,13 +38,14 @@ def n3():
 	location = "../n3"
 	os.chdir(location)
 	set_BASE(os.getcwd())
-	n3_initial()
-	n3_slices()
+	#n3_initial()
+	#n3_slices()
 	#then identify everything
-	#n3_dispersion()
+	n3_dispersion()
 	#n3_skies()
 	#then run standard and sensfunc manually
 	#n3_calibrate()
+	#now go measure line strengths with splot
 	
 def n6_initial():
 	zero_flats('Mask.pl')
