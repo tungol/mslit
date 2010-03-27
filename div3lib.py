@@ -27,15 +27,10 @@ def std(*args):
 
 ## Convenience functions ##
 
-def set_BASE(base):
-	"""Sets the value of the base directory"""
-	global BASE
-	BASE = base
-
 def zerocount(i):
 	"""Return the three digit representation of a number"""
 	if i < 10:
-		return "00%s" % i
+		return '00%s' % i
 	elif i < 100:
 		return '0%s' % i
 	else:
@@ -124,7 +119,7 @@ def fixpix(image, mask, **kwargs):
 def fix_image(image, mask):
 	"""Apply a bad pixel mask to an image"""
 	hedit(image, 'BPM', mask)
-	fixpix(image, 'BPM', verbose="yes")
+	fixpix(image, 'BPM', verbose='yes')
 
 def hedit(images, fields, value, **kwargs):
 	kwargs.setdefault('add', 'yes')
@@ -219,7 +214,7 @@ def rotate_galaxy(name, comp):
 	os.mkdir('%s/rot' % name)
 	for i, item in enumerate(data):
 		num = zerocount(i)
-		rotate("%s/base" % name, '%s/rot/%s' % (name, num), 
+		rotate('%s/base' % name, '%s/rot/%s' % (name, num), 
 			item['angle'])
 		rotate('@lists/%s' % comp, '%s/rot/%sc' % (name, num), 
 			item['angle'])
@@ -284,14 +279,17 @@ def slice_galaxy(name, comp, use=None):
 	imcopy_galaxy(name)
 	apsum_galaxy(name)
 	#needed for next step
-	os.makedirs('database/id%s/sum' % name)
+	try:
+		os.makedirs('database/id%s/sum' % name)
+	except OSError:
+		pass
 
 def zero_flats(mask):
 	"""This function combines the zeros and flats for a night,
 	then applies the bad pixel mask specified."""
-	zerocombine("@lists/zero")
-	flatcombine("@lists/flat1", output = "Flat1")
-	flatcombine("@lists/flat2", output = "Flat2")
+	zerocombine('@lists/zero')
+	flatcombine('@lists/flat1', output = 'Flat1')
+	flatcombine('@lists/flat2', output = 'Flat2')
 	fix_image('Flat1', mask)
 	fix_image('Flat2', mask)
 	fix_image('Zero', mask)
@@ -356,27 +354,27 @@ def set_aperture(input, section):
 ## Functions for low level reading, parsing, and writing ##
 
 def get_raw_data(name):
-	fn = os.path.join(BASE, 'input/%s.json' % name)
+	fn = 'input/%s.json' % name
 	data_file = open(fn, 'r')
 	raw_data = json.load(data_file)
 	data_file.close()
 	return raw_data
 
 def write_raw_data(name, raw_data):
-	fn = os.path.join(BASE, 'input/%s.json' % name)
+	fn = 'input/%s.json' % name
 	data_file = open(fn, 'w')
 	json.dump(raw_data, data_file)
 	data_file.close()
 
 def read_out_file(name):
-	fn = os.path.join(BASE, 'input/%s.out' % name)
+	fn = 'input/%s.out' % name
 	out_file = open(fn, 'r')
 	raw_out = out_file.readlines()
 	out_file.close()
 	return raw_out
 
 def get_pixel_sizes(name):
-	fn = os.path.join(BASE, 'input/%s.pix' % name)
+	fn = 'input/%s.pix' % name
 	file = open(fn, 'r')
 	raw = file.readlines()
 	file.close()
@@ -595,8 +593,8 @@ def generate_sky(name, item, lines):
 	num = zerocount(item['number'])
 	sky = '%s/sky.1d' % name
 	xopt = float(sky_subtract(name, item, sky, lines))
-	print "\tSolution for %s: %s" % (num, xopt)
-	print "\tSolution divided by width: %s" % (xopt / item['size'])
+	print '\tSolution for %s: %s' % (num, xopt)
+	print '\tSolution divided by width: %s' % (xopt / item['size'])
 	tmp_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
 	tmp_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
 	out_fn = '%s/sub/%s.1d' % (name, num)
@@ -648,3 +646,22 @@ def combine_sky_spectra(name, use=None, **kwargs):
 			'%s/sky/%s.scaled' % (name, num))
 		flist.append('%s/sky/%s.scaled' % (name, num))
 	scombine(list_convert(flist), '%s/sky.1d' % name, **kwargs)
+
+def modify_sky(night, name, number, op, value):
+	location = os.path.expanduser('~/iraf/work/%s' % night)
+	os.chdir(location)
+	i = int(number)
+	num = zerocount(i)
+	value = float(value)
+	data = get_data(name)
+	item = data[i]
+	sky_level = item['sky_level']
+	if op == '+':
+		new_sky_level = sky_level + value
+	elif op == '-':
+		new_sky_level = sky_level - value
+	data[i].update({'sky_level':new_sky_level})
+	write_data(name, data)
+	os.mkdir('%s/tmp' % name)
+	regenerate_sky(name, i, data)
+	subprocess.call(['rm', '-rf', '%s/tmp' % name])

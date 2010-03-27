@@ -95,3 +95,8 @@ def combine_sky_spectra(name, scale=False, **kwargs):
 			num = zerocount(spectra)
 			flist.append('%s/disp/%s.1d' % (name, num))
 	scombine(list_convert(flist), '%s/sky.1d' % name, **kwargs)
+
+def set_BASE(base):
+	"""Sets the value of the base directory"""
+	global BASE
+	BASE = base

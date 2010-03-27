@@ -35,9 +35,8 @@ def n3_calibrate():
 	calibration('ngc4725', 'pg1708+602')
 
 def n3():
-	location = "../n3"
+	location = os.path.expanduser('~/iraf/work/n3')
 	os.chdir(location)
-	set_BASE(os.getcwd())
 	n3_initial()
 	n3_slices()
 	#then identify everything
@@ -78,7 +77,7 @@ def n6_calibrate():
 	calibration('ngc4725', 'feige66')
 
 def n6():
-	location = "../n6"
+	location = os.path.expanduser('~/iraf/work/n6')
 	os.chdir(location)
 	set_BASE(os.getcwd())
 	#n6_initial()
