@@ -100,3 +100,77 @@ def set_BASE(base):
 	"""Sets the value of the base directory"""
 	global BASE
 	BASE = base
+
+def scinot(value):
+	value = str(value)
+	if 'e' not in value:
+		return value
+	tmp = str(value).split('e')
+	val, pow = tmp[0], tmp[1]
+	if val[-3:] == '667':
+		tmp = val[-2::-1]
+		for i, item in enumerate(tmp):
+			if item != '6':
+				break
+		val = val[:-i]
+	elif val[-3:] == '333':
+		tmp = val[::-1]
+		for i, item in enumerate(tmp):
+			if item != '3':
+				break
+		val = val[:-(i-1)]
+	return 'e'.join((val, pow))
+
+		#self.diagnostics = {
+		#	'r23': (lambda s: (s.OII.flux + s.OIII1.flux + s.OIII2.flux) / s.hbeta.flux), 
+			#'a23': (lambda s: (s.OIII1.flux + s.OIII2.flux) / s.OII.flux),
+			#'NII2 / halpha': (lambda s: s.NII2.flux / s.halpha.flux),
+			#'OIII2 / NII2': (lambda s: s.OIII2.flux / s.NII2.flux),
+			#'NII2 / OII': (lambda s: s.NII2.flux / s.OII.flux),
+			#'OIII2 / OII': (lambda s: s.OIII2.flux / s.OII.flux),
+			#'halpha / hbeta': (lambda s: s.halpha.flux / self.hbeta.flux),
+			# E(B-V) is already calculated by the time this is used
+		#	'E(B - V)': (lambda s: s.E),
+			# halpha calibration given by Kennicutt 1998
+		#	'SFR(M$_\odot$ / year)': (lambda s: 7.9 * 10 ** -42 * s.halpha.flux),
+		#	'Radial Distance (kpc)': (lambda s: s.rdistance),
+		#	'$12 + \log(O/H)$': lambda s: None
+		}
+
+def compare(gal1, gal2):
+	spectra_a = gal1.spectra
+	OH_a = [s.OH for s in spectra_a]
+	rdist_a = [s.rdistance for s in spectra_a]
+	r25_a = [dist / gal1.r25 for dist in rdist_a]
+	spectra_b = gal2.spectra
+	OH_b = [s.OH for s in spectra_b]
+	rdist_b = [s.rdistance for s in spectra_b]
+	r25_b = [dist / gal2.r25 for dist in rdist_b]
+	i = get_graph_number()
+	pylab.figure(figsize=(10,10), num=i)
+	pylab.subplots_adjust(left=0.1)
+	pylab.plot(r25_a, OH_a, 'o', label=gal1.name)
+	pylab.plot(r25_b, OH_b, 'o', label=gal2.name)
+	pylab.ylabel('$12 + \log(O/H)$')
+	pylab.xlabel('Radial Distance to object divided by r$_{25}$')
+	pylab.legend()
+	pylab.savefig('tables/comparison.eps', format='eps')
+
+
+	def fit_metal_sfr(self):
+		# inital guess: flat and solar metallicity
+		slope = div3lib.ParameterClass(0)
+		intercept = div3lib.ParameterClass(8.6)
+		def function(x):
+			return (intercept() + slope() * x)
+		
+		x = [s.SFR for s in self.spectra]
+		y = [s.OH for s in self.spectra]
+		div3lib.remove_nan(x, y)
+		x = numpy.array(x)
+		y = numpy.array(y)
+		fit = div3lib.fit(function, [slope, intercept], y, x)
+		self.metal_sfr_fit = fit
+		self.metal_sfr_grad = fit[0][0]
+		return fit
+

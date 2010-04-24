@@ -1,4 +1,5 @@
-import math, os, os.path, scipy.optimize, subprocess
+import math, os, os.path, subprocess, cmath
+import numpy, scipy.optimize
 import simplejson as json
 from pyraf import iraf
 import pyfits
@@ -9,10 +10,29 @@ import pyfits
 
 ## Some Math ##
 
+def cubic_solve(b0, b1, b2, b3):
+	a = b2 / b3
+	b = b1 / b3
+	c = (b0) / b3
+	m = 2 * (a ** 3) - 9 * a * b + 27 * c
+	k = (a ** 2) - 3 * b
+	n = (m ** 2) - 4 * (k ** 3)
+	w1 = -.5 + .5 * math.sqrt(3) * 1j
+	w2 = -.5 - .5 * math.sqrt(3) * 1j
+	alpha = (.5 * (m + cmath.sqrt(n))) ** (1.0/3)
+	beta = (.5 * (m - cmath.sqrt(n))) ** (1.0/3)
+	solution1 = -(1.0/3) * (a + alpha + beta) 
+	solution2 = -(1.0/3) * (a + w2 * alpha + w1 * beta) 
+	solution3 = -(1.0/3) * (a + w1 * alpha + w2 * beta)
+	return [solution1, solution2, solution3]
+
 def avg(*args):
 	"""Return the average of a list of values"""
 	floatNums = [float(x) for x in args]
-	return sum(floatNums) / len(args)
+	remove_nan(floatNums)
+	if len(floatNums) == 0:
+		return float('NaN')
+	return sum(floatNums) / len(floatNums)
 
 def rms(*args):
 	"""Return the root mean square of a list of values"""
@@ -26,6 +46,41 @@ def std(*args):
 	return rms(*deviations)
 
 ## Convenience functions ##
+
+def fit(function, parameters, y, x=None):
+	def f(params):
+		i = 0
+		for p in parameters:
+			p.set(params[i])
+			i += 1
+		return y - function(x)
+	
+	if x is None:
+		x = numpy.arange(y.shape[0])
+	p = [param() for param in parameters]
+	return scipy.optimize.leastsq(f,p)
+
+class ParameterClass:
+	def __init__(self, value):
+		self.value = value
+	
+	def set(self, value):
+		self.value = value
+	
+	def __call__(self):
+		return self.value
+	
+
+def remove_nan(*lists):
+	""" remove NaNs from one or more lists 
+		if more than one, keep shape of all lists the same """
+	for list in lists:
+		count = 0
+		for i, item in enumerate(list[:]):
+			if numpy.isnan(item):
+				for item in lists:
+					del item[i - count]
+				count += 1
 
 def zerocount(i):
 	"""Return the three digit representation of a number"""
@@ -171,7 +226,7 @@ def apsum_galaxy(name):
 		namefix('%s/sum/%s.1d' % (name, num))
 		namefix('%s/sum/%sc.1d' % (name, num))
 
-def calibrate_galaxy(name, calibration, prefix=''):
+def calibrate_galaxy(name, calibration):
 	data = get_data(name)
 	sens = '%s/sens' % calibration
 	for i, item in enumerate(data):
@@ -208,10 +263,13 @@ def imcopy_galaxy(name):
 			'%s/slice/%s' % (name, num))
 		imcopy('%s/rot/%sc%s' % (name, num, item['section']), 
 			'%s/slice/%sc' % (name, num))
-	
+
 def rotate_galaxy(name, comp):
 	data = get_data(name)
-	os.mkdir('%s/rot' % name)
+	try:
+		os.mkdir('%s/rot' % name)
+	except:
+		pass
 	for i, item in enumerate(data):
 		num = zerocount(i)
 		rotate('%s/base' % name, '%s/rot/%s' % (name, num), 
@@ -403,6 +461,7 @@ def init_data(name, use=None):
 	angles = get_angles(coord)
 	sections, sizes = get_sections(coord)
 	for i, angle in enumerate(angles):
+		print i, sections[i]
 		data[i].update({'angle':angle, 'section':sections[i], 
 			'size':sizes[i]})
 	write_data(name, data)
@@ -467,23 +526,26 @@ def get_sections(raw_data):
 	list2 = raw_data[columns[1]]
 	sections = []
 	size = []
-	for item1, item2 in zip(list1, list2):
+	number = len(list1)
+	for i, (item1, item2) in enumerate(zip(list1, list2)):
 		start1 = item1['start']
 		end1 = item1['end']
 		start2 = item2['start']
 		end2 = item2['end']
 		start = avg(start1, start2)
-		if math.modf(start)[0] < 0.25:
+		end = avg(end1, end2)
+		start -= 1.5
+		end += 1.5
+		if math.modf(start)[0] < 0.70:
 			start = int(math.floor(start))
 		else:
 			start = int(math.ceil(start))
-		end = avg(end1, end2)
-		if math.modf(end)[0] > 0.75:
+		if math.modf(end)[0] > 0.30:
 			end = int(math.ceil(end))
 		else:
 			end = int(math.floor(end))
-		sections.append('[1:2048,%s:%s]' % (start, end))
 		size.append(end - start)
+		sections.append('[1:2048,%s:%s]' % (start, end))
 	return sections, size
 
 def parse_out_file(raw_out):
@@ -650,18 +712,51 @@ def combine_sky_spectra(name, use=None, **kwargs):
 def modify_sky(night, name, number, op, value):
 	location = os.path.expanduser('~/iraf/work/%s' % night)
 	os.chdir(location)
-	i = int(number)
-	num = zerocount(i)
+	number = int(number)
 	value = float(value)
 	data = get_data(name)
-	item = data[i]
+	item = data[number]
 	sky_level = item['sky_level']
 	if op == '+':
 		new_sky_level = sky_level + value
 	elif op == '-':
 		new_sky_level = sky_level - value
-	data[i].update({'sky_level':new_sky_level})
+	item.update({'sky_level':new_sky_level})
 	write_data(name, data)
 	os.mkdir('%s/tmp' % name)
-	regenerate_sky(name, i, data)
+	regenerate_sky(name, item)
 	subprocess.call(['rm', '-rf', '%s/tmp' % name])
+
+
+########################################################
+## Functions related to processing and output results ##
+########################################################
+
+def make_table(spectra, keys, lookup):
+	string = ''
+	string += '\\begin{table}\n'
+	string += '\\begin{tabular}{ *{%s}{c}}\n' % (len(keys) + 1)
+	string += '\\toprule\n'
+	string += ' Number '
+	for item in keys:
+		string += '& %s' % item
+	string += '\\\\\n'
+	string += '\\midrule\n'
+	for item in spectra:
+		if item.halpha != 0:
+			string += ' %s ' % item.id
+			for line in keys:
+				if type(item.__dict__[line]) == float:
+					value = item.__dict__[line]
+				else:
+					value = item.__dict__[line].flux
+				if numpy.isnan(value):
+					value = '. . .'
+				else:
+					value = '%.4g' % value
+				string += '& %s ' % value
+			string += '\\\\\n'
+	string += '\\bottomrule\n'
+	string += '\\end{tabular}\n\n'
+	string += '\\end{table}\n'
+	return string
