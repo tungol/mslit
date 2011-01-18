@@ -174,3 +174,69 @@ def compare(gal1, gal2):
 		self.metal_sfr_grad = fit[0][0]
 		return fit
 
+def n6_initial():
+	zero_flats('Mask.pl')
+	init_galaxy('feige34', 'Mask.pl', 'Zero', 'Flat1')
+	init_galaxy('feige66', 'Mask.pl', 'Zero', 'Flat2')
+	init_galaxy('ngc2985', 'Mask.pl', 'Zero', 'Flat1')
+	init_galaxy('ngc4725', 'Mask.pl', 'Zero', 'Flat2')
+
+def n6_slices():
+	#slice_galaxy('feige34', 'henear1', use='ngc2985')
+	slice_galaxy('feige66', 'henear2', use='ngc4725')
+	#slice_galaxy('ngc2985', 'henear1')
+	slice_galaxy('ngc4725', 'henear2')
+
+def n6_dispersion():
+	#disp_galaxy('feige34', use='ngc2985')
+	disp_galaxy('feige66', use='ngc4725')
+	#disp_galaxy('ngc2985')
+	disp_galaxy('ngc4725')
+
+def n6_skies():
+	lines = [5893, 5578, 6301, 6365]
+	#skies('feige34', lines, obj=10)
+	skies('feige66', lines, obj=18)
+	#skies('ngc2985', lines)
+	skies('ngc4725', lines)
+
+def n6_calibrate():
+	#calibration('ngc2985', 'feige34')
+	calibration('ngc4725', 'feige66')
+
+def n6():
+	location = os.path.expanduser('~/iraf/work/n6')
+	os.chdir(location)
+	#n6_initial()
+	#n6_slices()
+	#then identify everything
+	#n6_dispersion()
+	#n6_skies()
+	#then run standard and sensfunc manually
+	#n6_calibrate()
+	#now go measure line strengths with splot
+
+
+def make_table(spectra, keys, lookup):
+	string = ''
+	string += '\\begin{tabular}{ *{%s}{c}}\n' % (len(keys) + 1)
+	string += '\\toprule\n'
+	string += ' Number '
+	for item in keys:
+		string += '& %s' % lookup[item]
+	string += '\\\\\n'
+	string += '\\midrule\n'
+	for item in spectra:
+		if item.halpha != 0:
+			string += ' %s ' % item.id
+			for key in keys:
+				value = item.__dict__[key]
+				if numpy.isnan(value):
+					value = '. . .'
+				else:
+					value = '%.4g' % value
+				string += '& %s ' % value
+			string += '\\\\\n'
+	string += '\\bottomrule\n'
+	string += '\\end{tabular}\n'
+	return string

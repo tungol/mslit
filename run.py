@@ -3,6 +3,7 @@ from div3lib import zero_flats, init_galaxy, slice_galaxy
 from div3lib import disp_galaxy, skies, calibration
 
 def n3_initial():
+	""" combines zeros and flats, then runs ccdproc and combine """
 	zero_flats('Mask.pl')
 	init_galaxy('feige34', 'Mask.pl', 'Zero', 'Flat1')
 	init_galaxy('ngc3169', 'Mask.pl', 'Zero', 'Flat1')
@@ -10,18 +11,21 @@ def n3_initial():
 	init_galaxy('pg1708+602', 'Mask.pl', 'Zero', 'Flat2')
 
 def n3_slices():
+	""" creates 2D slices and then 1D spectra """
 	slice_galaxy('feige34', 'henear1', use='ngc3169')
 	slice_galaxy('ngc3169', 'henear1')
 	slice_galaxy('ngc4725', 'henear2')
 	slice_galaxy('pg1708+602', 'henear2', use='ngc4725')
 
 def n3_dispersion():
+	""" applies dispersion correction """
 	disp_galaxy('feige34', use='ngc3169')
 	disp_galaxy('ngc3169')
 	disp_galaxy('ngc4725')
 	disp_galaxy('pg1708+602', use='ngc4725')
 
 def n3_skies():
+	""" performs sky subtraction """
 	lines = [5893, 5578, 6301, 6365]
 	skies('feige34', lines, obj=10)
 	skies('ngc3169', lines)
@@ -29,62 +33,21 @@ def n3_skies():
 	skies('pg1708+602', lines, obj=20)
 
 def n3_calibrate():
+	""" calibrates using a standard star """
 	calibration('ngc3169', 'feige34')
 	calibration('ngc4725', 'pg1708+602')
 
 def n3():
 	location = os.path.expanduser('~/iraf/work/n3')
 	os.chdir(location)
+	#uncomment and run these steps one at a time to avoid problems
 	#n3_initial()
 	#n3_slices()
 	#then identify everything
 	#n3_dispersion()
 	#n3_skies()
 	#then run standard and sensfunc manually
-	n3_calibrate()
+	#n3_calibrate()
 	#now go measure line strengths with splot
 
-def n6_initial():
-	zero_flats('Mask.pl')
-	init_galaxy('feige34', 'Mask.pl', 'Zero', 'Flat1')
-	init_galaxy('feige66', 'Mask.pl', 'Zero', 'Flat2')
-	init_galaxy('ngc2985', 'Mask.pl', 'Zero', 'Flat1')
-	init_galaxy('ngc4725', 'Mask.pl', 'Zero', 'Flat2')
-
-def n6_slices():
-	#slice_galaxy('feige34', 'henear1', use='ngc2985')
-	slice_galaxy('feige66', 'henear2', use='ngc4725')
-	#slice_galaxy('ngc2985', 'henear1')
-	slice_galaxy('ngc4725', 'henear2')
-
-def n6_dispersion():
-	#disp_galaxy('feige34', use='ngc2985')
-	disp_galaxy('feige66', use='ngc4725')
-	#disp_galaxy('ngc2985')
-	disp_galaxy('ngc4725')
-
-def n6_skies():
-	lines = [5893, 5578, 6301, 6365]
-	#skies('feige34', lines, obj=10)
-	skies('feige66', lines, obj=18)
-	#skies('ngc2985', lines)
-	skies('ngc4725', lines)
-
-def n6_calibrate():
-	#calibration('ngc2985', 'feige34')
-	calibration('ngc4725', 'feige66')
-
-def n6():
-	location = os.path.expanduser('~/iraf/work/n6')
-	os.chdir(location)
-	#n6_initial()
-	#n6_slices()
-	#then identify everything
-	#n6_dispersion()
-	#n6_skies()
-	#then run standard and sensfunc manually
-	#n6_calibrate()
-	#now go measure line strengths with splot
-
-#n3()
-n6()
+n3()
