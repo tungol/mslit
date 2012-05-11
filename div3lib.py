@@ -1,7 +1,7 @@
 import math, os, os.path, subprocess, cmath, json
 import numpy, scipy.optimize, pylab
-import yaml
 from pyraf import iraf
+import yaml
 import pyfits
 import coords
 
@@ -466,10 +466,7 @@ def read_out_file(name):
 def get_pixel_sizes(name):
     fn = 'input/%s.yaml' % name
     with open(fn) as f:
-        raw = yaml.load(f.read())
-    data = {}
-    for item in data:
-        data.update({raw['column']:{'start':raw['bottom'], 'end':raw['top']}})
+        data = yaml.load(f.read())
     return data
 
 ## Functions for basic manipulation ##
@@ -535,19 +532,19 @@ def get_angles(raw_data):
 def get_coord(pixel_sizes, real_start, real_end, data):
     real_size = real_end - real_start
     coord = {}
-    for column in pixel_sizes:
-        def convert(real_value):
+    for pcol in pixel_sizes:
+        def convert(real_value, pixel):
             real_value = float(real_value)
-            pixel_start = float(pixel_sizes[column]['start'])
-            pixel_end = float(pixel_sizes[column]['end'])
+            pixel_start = float(pixel['start'])
+            pixel_end = float(pixel['end'])
             pixel_size = pixel_end - pixel_start
             return (((real_value - real_start) * 
                 (pixel_size / real_size)) + pixel_start)
-        coord.update({column:[]})
+        coord.update({pcol['column']:[]})
         for item in data:
-            start = convert(item['xlo'])
-            end = convert(item['xhi'])
-            coord[column].append({'start':start, 'end':end})
+            start = convert(item['xlo'], pcol)
+            end = convert(item['xhi'], pcol)
+            coord[pcol['column']].append({'start':start, 'end':end})
     return coord
 
 def get_sections(raw_data):
