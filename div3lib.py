@@ -1,5 +1,6 @@
 import math, os, os.path, subprocess, cmath, json
 import numpy, scipy.optimize, pylab
+import yaml
 from pyraf import iraf
 import pyfits
 import coords
@@ -463,14 +464,12 @@ def read_out_file(name):
     return raw_out
 
 def get_pixel_sizes(name):
-    fn = 'input/%s.pix' % name
-    file = open(fn, 'r')
-    raw = file.readlines()
-    file.close()
+    fn = 'input/%s.yaml' % name
+    with open(fn) as f:
+        raw = yaml.load(f.read())
     data = {}
-    for line in raw:
-        column, start, end = line.strip().split(',')
-        data.update({column:{'start':start, 'end':end}})
+    for item in data:
+        data.update({raw['column']:{'start':raw['bottom'], 'end':raw['top']}})
     return data
 
 ## Functions for basic manipulation ##
