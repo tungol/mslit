@@ -12,11 +12,11 @@ import numpy
 
 def avg(*args):
     """Return the average of a list of values"""
-    floatNums = [float(x) for x in args]
-    remove_nan(floatNums)
-    if len(floatNums) == 0:
+    float_nums = [float(x) for x in args]
+    remove_nan(float_nums)
+    if len(float_nums) == 0:
         return float('NaN')
-    return sum(floatNums) / len(floatNums)
+    return sum(float_nums) / len(float_nums)
 
 
 def rms(*args):
@@ -37,9 +37,9 @@ def std(*args):
 def remove_nan(*lists):
     """ remove NaNs from one or more lists
         if more than one, keep shape of all lists the same """
-    for list in lists:
+    for l in lists:
         count = 0
-        for i, item in enumerate(list[:]):
+        for i, item in enumerate(l[:]):
             if numpy.isnan(item):
                 for item in lists:
                     del item[i - count]
@@ -65,12 +65,12 @@ def namefix(name):
     os.rename('%s.0001.fits' % name, '%s.fits' % name)
 
 
-def list_convert(list):
+def list_convert(pylist):
     """Convert python lists to the strings that IRAF accepts as lists"""
-    str = list[0]
-    for item in list[1:]:
-        str += ', %s' % item
-    return str
+    stringlist = pylist[0]
+    for item in pylist[1:]:
+        stringlist += ', %s' % item
+    return stringlist
 
 
 def set_aperture(input, section):

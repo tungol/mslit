@@ -91,11 +91,9 @@ def write_data(name, data):
 
 def get_angles(raw_data):
     columns = raw_data.keys()
-    list1 = raw_data[columns[0]]
-    list2 = raw_data[columns[1]]
     run = float(columns[0]) - float(columns[1])
     angles = []
-    for item1, item2 in zip(list1, list2):
+    for item1, item2 in zip(raw_data[columns[0]], raw_data[columns[1]]):
         start1 = item1['start']
         end1 = item1['end']
         start2 = item2['start']
@@ -135,7 +133,7 @@ def get_sections(raw_data):
     list2 = raw_data[columns[1]]
     sections = []
     size = []
-    for i, (item1, item2) in enumerate(zip(list1, list2)):
+    for (item1, item2) in zip(list1, list2):
         start1 = item1['start']
         end1 = item1['end']
         start2 = item2['start']

@@ -128,7 +128,7 @@ def skies(name, lines, use=None, obj=None):
 def sky_subtract_galaxy(name, lines):
     data = get_data(name)
     os.mkdir('%s/tmp' % name)
-    for i, item in enumerate(data):
+    for item in data:
         if item['type'] == 'HIIREGION':
             if 'sky_level' in item:
                 regenerate_sky(name, item)

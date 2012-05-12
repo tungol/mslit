@@ -23,7 +23,7 @@ def find_line_peak(hdulist, wavelength, search):
     return peak_num
 
 
-def get_continuum(upcont_num, downcont_num, data, search=5):
+def get_continuum(upcont_num, downcont_num, data):
     data = data.tolist()
     values = data[upcont_num:(upcont_num + 3)]
     values.extend(data[(downcont_num - 3):downcont_num])

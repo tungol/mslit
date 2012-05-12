@@ -9,7 +9,7 @@ import numpy
 import scipy
 import coords
 from data import get_data
-from generic import remove_nan, avg, rms, std
+from misc import remove_nan, avg, rms, std
 
 GRAPH_NUMBER = 0
 
@@ -355,10 +355,10 @@ class GalaxyClass:
                 self.spectradict[num].add_measurement(line)
     
     def add_logs(self):
-            logs = os.listdir('%s/measurements/' % self.id)
-            for log in logs:
-                if log[-4:] == '.log':
-                    self.add_log(log[:-4])
+        logs = os.listdir('%s/measurements/' % self.id)
+        for log in logs:
+            if log[-4:] == '.log':
+                self.add_log(log[:-4])
     
     def add_spectra(self, num, spectra):
         self.spectradict.update({num: spectra})
