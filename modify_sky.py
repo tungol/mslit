@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 import sys
-from div3lib import modify_sky
+from sky import modify_sky
 
 # call signature: modify_sky night name number op value
 # example: ./modify_sky.py n3 ngc3169 15 + 0.5
