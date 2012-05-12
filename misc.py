@@ -1,4 +1,6 @@
-import math, os, os.path
+import math
+import os
+import os.path
 import numpy
 
 ##########################################
@@ -6,6 +8,7 @@ import numpy
 ##########################################
 
 ## Some Math ##
+
 
 def avg(*args):
     """Return the average of a list of values"""
@@ -15,10 +18,12 @@ def avg(*args):
         return float('NaN')
     return sum(floatNums) / len(floatNums)
 
+
 def rms(*args):
     """Return the root mean square of a list of values"""
     squares = [(float(x) ** 2) for x in args]
     return math.sqrt(avg(*squares))
+
 
 def std(*args):
     """Return the standard deviation of a list of values"""
@@ -30,7 +35,7 @@ def std(*args):
 ## Convenience functions ##
 
 def remove_nan(*lists):
-    """ remove NaNs from one or more lists 
+    """ remove NaNs from one or more lists
         if more than one, keep shape of all lists the same """
     for list in lists:
         count = 0
@@ -39,6 +44,7 @@ def remove_nan(*lists):
                 for item in lists:
                     del item[i - count]
                 count += 1
+
 
 def zerocount(i):
     """Return the three digit representation of a number"""
@@ -53,9 +59,11 @@ def zerocount(i):
 
 ## Functions to smooth over the interface to IRAF ##
 
+
 def namefix(name):
     """Rename files to get rid of silly naming scheme of apsum"""
     os.rename('%s.0001.fits' % name, '%s.fits' % name)
+
 
 def list_convert(list):
     """Convert python lists to the strings that IRAF accepts as lists"""
@@ -63,6 +71,7 @@ def list_convert(list):
     for item in list[1:]:
         str += ', %s' % item
     return str
+
 
 def set_aperture(input, section):
     """Create an aperture definition file for apsum"""

@@ -1,5 +1,7 @@
-import os, subprocess
-import pyfits, scipy.optimize
+import os
+import subprocess
+import pyfits
+import scipy.optimize
 from misc import rms, std, avg, zerocount, list_convert
 from data import get_data, write_data
 from iraf_base import sarith, imcopy, scombine
@@ -10,6 +12,7 @@ from iraf_base import sarith, imcopy, scombine
 
 ## Functions for manipulating the fits data at a low level ##
 
+
 def find_line_peak(hdulist, wavelength, search):
     number = get_wavelength_location(hdulist, wavelength)
     data = hdulist[0].data
@@ -19,11 +22,13 @@ def find_line_peak(hdulist, wavelength, search):
     peak_num = search[list.index(peak)]
     return peak_num
 
+
 def get_continuum(upcont_num, downcont_num, data, search=5):
     data = data.tolist()
     values = data[upcont_num:(upcont_num + 3)]
     values.extend(data[(downcont_num - 3):downcont_num])
     return rms(*values)
+
 
 def get_peak_cont(hdulist, wavelength, search):
     data = hdulist[0].data
@@ -44,6 +49,7 @@ def get_peak_cont(hdulist, wavelength, search):
     cont = get_continuum(upcont_num, downcont_num, data)
     return peak, cont
 
+
 def get_wavelength_location(hdulist, wavelength):
     headers = hdulist[0].header
     start = headers['CRVAL1']
@@ -53,6 +59,7 @@ def get_wavelength_location(hdulist, wavelength):
     return number
 
 ## Functions for solving for the proper level of sky subtraction ##
+
 
 def get_std_sky(scale, name, num, lines):
     scale = float(scale)
@@ -73,6 +80,7 @@ def get_std_sky(scale, name, num, lines):
         deviations.append(std(*values))
     return avg(*deviations)
 
+
 def guess_scaling(name, spectra, sky, lines):
     number = spectra['number']
     name = '%s/disp/%s.1d.fits' % (name, zerocount(number))
@@ -82,12 +90,13 @@ def guess_scaling(name, spectra, sky, lines):
     scalings = []
     for line in lines:
         spec_peak, spec_cont = get_peak_cont(spectrafits, line, 5)
-        sky_peak, sky_cont = get_peak_cont(skyfits, line,   5)
+        sky_peak, sky_cont = get_peak_cont(skyfits, line, 5)
         scale = ((spec_peak - spec_cont) / (sky_peak - sky_cont))
         scalings.append(scale)
     return avg(*scalings)
 
 ## Functions wrapping the solvers and providing output ##
+
 
 def generate_sky(name, item, lines):
     num = zerocount(item['number'])
@@ -98,10 +107,11 @@ def generate_sky(name, item, lines):
     tmp_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
     tmp_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
     out_fn = '%s/sub/%s.1d' % (name, num)
-    out_sky  = '%s/sky/%s.sky.1d' % (name, num)
+    out_sky = '%s/sky/%s.sky.1d' % (name, num)
     imcopy(tmp_fn, out_fn)
-    imcopy(tmp_sky, out_sky)    
-    item.update({'sky_level':xopt})
+    imcopy(tmp_sky, out_sky)
+    item.update({'sky_level': xopt})
+
 
 def regenerate_sky(name, item):
     num = zerocount(item['number'])
@@ -119,16 +129,18 @@ def regenerate_sky(name, item):
     imcopy(tmp_sky, out_sky)
     imcopy(tmp_fn, out_fn)
 
+
 def sky_subtract(name, spectra, sky, lines):
     num = zerocount(spectra['number'])
     guess = guess_scaling(name, spectra, sky, lines)
     # fmin
     os.mkdir('%s/tmp/%s' % (name, num))
-    xopt = scipy.optimize.fmin(get_std_sky, guess, 
+    xopt = scipy.optimize.fmin(get_std_sky, guess,
         args=(name, num, lines), xtol=0.001)
     return xopt
 
 ## Other functions relating to sky subtraction ##
+
 
 def combine_sky_spectra(name, use=None, **kwargs):
     if not use:
@@ -142,10 +154,11 @@ def combine_sky_spectra(name, use=None, **kwargs):
     for spectra in list:
         scale = data[spectra]['size']
         num = zerocount(spectra)
-        sarith('%s/disp/%s.1d' % (use, num), '/', scale, 
+        sarith('%s/disp/%s.1d' % (use, num), '/', scale,
             '%s/sky/%s.scaled' % (name, num))
         flist.append('%s/sky/%s.scaled' % (name, num))
     scombine(list_convert(flist), '%s/sky.1d' % name, **kwargs)
+
 
 def modify_sky(path, name, number, op, value):
     os.chdir(path)
@@ -158,9 +171,8 @@ def modify_sky(path, name, number, op, value):
         new_sky_level = sky_level + value
     elif op == '-':
         new_sky_level = sky_level - value
-    item.update({'sky_level':new_sky_level})
+    item.update({'sky_level': new_sky_level})
     write_data(name, data)
     os.mkdir('%s/tmp' % name)
     regenerate_sky(name, item)
     subprocess.call(['rm', '-rf', '%s/tmp' % name])
-

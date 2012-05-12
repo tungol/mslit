@@ -1,14 +1,22 @@
-import os, math, cmath
-import pylab, numpy, scipy
+#!/usr/bin/env python
+# encoding: utf-8
+
+import os
+import math
+import cmath
+import pylab
+import numpy
+import scipy
 import coords
 from data import get_data
 from generic import remove_nan, avg, rms, std
 
 GRAPH_NUMBER = 0
 
+
 def get_graph_number():
     GRAPH_NUMBER += 1
-    return GRAPH_NUMBER    
+    return GRAPH_NUMBER
 
 
 ## Some Math ##
@@ -22,12 +30,13 @@ def cubic_solve(b0, b1, b2, b3):
     n = (m ** 2) - 4 * (k ** 3)
     w1 = -.5 + .5 * math.sqrt(3) * 1j
     w2 = -.5 - .5 * math.sqrt(3) * 1j
-    alpha = (.5 * (m + cmath.sqrt(n))) ** (1.0/3)
-    beta = (.5 * (m - cmath.sqrt(n))) ** (1.0/3)
-    solution1 = -(1.0/3) * (a + alpha + beta) 
-    solution2 = -(1.0/3) * (a + w2 * alpha + w1 * beta) 
-    solution3 = -(1.0/3) * (a + w1 * alpha + w2 * beta)
+    alpha = (.5 * (m + cmath.sqrt(n))) ** (1.0 / 3)
+    beta = (.5 * (m - cmath.sqrt(n))) ** (1.0 / 3)
+    solution1 = -(1.0 / 3) * (a + alpha + beta)
+    solution2 = -(1.0 / 3) * (a + w2 * alpha + w1 * beta)
+    solution3 = -(1.0 / 3) * (a + w1 * alpha + w2 * beta)
     return [solution1, solution2, solution3]
+
 
 def sigfigs_format(x, n):
     if n < 1:
@@ -38,7 +47,7 @@ def sigfigs_format(x, n):
     if exponent == 0:
         return value
     else:
-        return '$%s \\times 10^{%s}$' % (value, exponent) 
+        return '$%s \\times 10^{%s}$' % (value, exponent)
 
 
 ## Convenience functions ##
@@ -53,10 +62,12 @@ def average(items, values, test):
         remove_nan(tmp)
         a = avg(*tmp)
         s = std(*tmp)
-        results.update({value: [a,s]})
+        results.update({value: [a, s]})
     return results
 
+
 def fit(function, parameters, y, x=None):
+    
     def f(params):
         i = 0
         for p in parameters:
@@ -67,13 +78,15 @@ def fit(function, parameters, y, x=None):
     if x is None:
         x = numpy.arange(y.shape[0])
     p = [param() for param in parameters]
-    return scipy.optimize.leastsq(f,p)
+    return scipy.optimize.leastsq(f, p)
 
 
 
 ## Useful classes ##
 
+
 class ParameterClass:
+    
     def __init__(self, value):
         self.value = value
     
@@ -85,7 +98,9 @@ class ParameterClass:
     
 
 class MeasurementClass:
+
     def __init__(self, line):
+
         def conv(str):
             if str == "INDEF":
                 str = "NaN"
@@ -113,6 +128,7 @@ class MeasurementClass:
     
 
 class SpectrumClass:
+    
     def __init__(self, id):
         self.id = id
         try:
@@ -161,7 +177,7 @@ class SpectrumClass:
         b1 = -4.1926
         b2 = 1.0246
         b3 = -6.3169 * 10 ** -2
-        # solving the equation 
+        # solving the equation
         solutions = cubic_solve(b0, b1, b2, b3)
         for i, item in enumerate(solutions):
             if item.imag == 0.0:
@@ -218,20 +234,21 @@ class SpectrumClass:
             self.__dict__[name] = line.flux
     
     def correct_extinction(self):
+        
         def k(l):
             # for use in the calzetti method
-            # convert to micrometers from angstrom        
+            # convert to micrometers from angstrom
             l = l / 10000.
             if 0.63 <= l <= 1.0:
-                return ((1.86 / l ** 2) - (0.48 / l ** 3) - 
+                return ((1.86 / l ** 2) - (0.48 / l ** 3) -
                     (0.1 / l) + 1.73)
             elif 0.12 <= l < 0.63:
-                return (2.656 * (-2.156 + (1.509 / l) - 
+                return (2.656 * (-2.156 + (1.509 / l) -
                     (0.198 / l ** 2) + (0.011 / l ** 3)) + 4.88)
             else:
                 raise ValueError
         
-#        using the method described here: 
+#        using the method described here:
 #  <http://www.astro.umd.edu/~chris/publications/html_papers/aat/node13.html>
         R_intr = 2.76
         a = 2.21
@@ -244,40 +261,41 @@ class SpectrumClass:
 #        Now using the Calzetti method:
         for line in self.lines.values():
             line.obv_flux = line.flux
-            line.flux = line.obv_flux / (10 ** 
+            line.flux = line.obv_flux / (10 **
                 (-0.4 * self.extinction * k(line.loc)))
-            self.__dict__[line.name] =  line.flux
+            self.__dict__[line.name] = line.flux
         self.corrected = True
     
     def id_lines(self, lines):
         for measurement in self.measurements:
             tmp = {}
             for name in lines:
-                tmp.update({(abs(measurement.center - 
+                tmp.update({(abs(measurement.center -
                     lines[name])): name})
             name = tmp[min(tmp.keys())]
             measurement.name = name
     
 
 class GalaxyClass:
+    
     def __init__(self, id):
         self.id = id
         self.spectradict = {}
-        self.lines = {'OII': 3727, 'hgamma': 4341, 'hbeta': 4861, 
-            'OIII1': 4959, 'OIII2': 5007, 'NII1': 6548, 
-            'halpha': 6563, 'NII2': 6583, 'SII1': 6717, 
+        self.lines = {'OII': 3727, 'hgamma': 4341, 'hbeta': 4861,
+            'OIII1': 4959, 'OIII2': 5007, 'NII1': 6548,
+            'halpha': 6563, 'NII2': 6583, 'SII1': 6717,
             'SII2': 6731, 'OIII3': 4363}
         self.lookup = {
-            'OII': '[O II]$\lambda3727$', 
-            'hgamma': 'H$\gamma$', 
+            'OII': '[O II]$\lambda3727$',
+            'hgamma': 'H$\gamma$',
             'hbeta': 'H$\\beta$',
-            'OIII1': '[O III]$\lambda4959$', 
+            'OIII1': '[O III]$\lambda4959$',
             'OIII2': '[O III]$\lambda5007$',
-            'NII1': '[N II]$\lambda6548$', 
-            'halpha': 'H$\\alpha$', 
-            'NII2': '[N II]$\lambda6583$', 
-            'SII1': '[S II]$\lambda6717$', 
-            'SII2': '[S II]$\lambda6731$', 
+            'NII1': '[N II]$\lambda6548$',
+            'halpha': 'H$\\alpha$',
+            'NII2': '[N II]$\lambda6583$',
+            'SII1': '[S II]$\lambda6717$',
+            'SII2': '[S II]$\lambda6731$',
             'OIII3': '[O III]$\lambda4363$',
             'OH': '$12 + \log{\\textnormal{O/H}}$',
             'SFR': 'SFR(M$_\odot$ / year)',
@@ -286,9 +304,9 @@ class GalaxyClass:
             'r23': '$R_{23}$'
         }
         self.computed = {
-            'r23': 'calculate_r23', 
-            'SFR': 'calculate_SFR', 
-            'rdistance': 'calculate_radial_distance', 
+            'r23': 'calculate_r23',
+            'SFR': 'calculate_SFR',
+            'rdistance': 'calculate_radial_distance',
             'OH': 'calculate_OH'
         }
     
@@ -303,8 +321,9 @@ class GalaxyClass:
             raise AttributeError
     
     def add_log(self, fn):
+        
         def is_spectra_head(line):
-            if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+            if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'):
                 return True
             else:
@@ -366,6 +385,7 @@ class GalaxyClass:
         # inital guess: flat and solar metallicity
         slope = ParameterClass(0)
         intercept = ParameterClass(8.6)
+        
         def function(x):
             return (intercept() + slope() * x)
         
@@ -418,6 +438,7 @@ class GalaxyClass:
 
 ## Functions for reading in tables of data ##
 
+
 def get_galaxies(fn, keys):
     with open('../other_data/%s' % fn) as f:
         raw = f.readlines()
@@ -442,7 +463,7 @@ def get_galaxies(fn, keys):
             current.ring = keys[id]['ring']
             current.env = keys[id]['env']
         else:
-            (r, hbeta, OII, OIII) =  line.split('\t')
+            (r, hbeta, OII, OIII) = line.split('\t')
             r = float(r)
             hbeta = float(hbeta)
             OII = float(OII)
@@ -463,6 +484,7 @@ def get_galaxies(fn, keys):
             number += 1
     return galaxies
 
+
 def get_other():
     files = os.listdir('../other_data/')
     for fn in files:
@@ -479,6 +501,7 @@ def get_other():
         galaxy.regions = len(galaxy.spectra)
     return others
 
+
 def parse_keyfile(fn):
     with open('../other_data/%s' % fn) as f:
         raw = f.readlines()
@@ -493,8 +516,8 @@ def parse_keyfile(fn):
             distance = float(distance) * 1000
             # convert r_0 from arcminutes to kpc
             r_0 = distance * math.tan(math.radians(float(r_0) * 60))
-            keys.update({ngc:{
-            'distance': distance, 
+            keys.update({ngc: {
+            'distance': distance,
             'r_0': r_0,
             'type': htype,
             'bar': bar,
@@ -504,8 +527,8 @@ def parse_keyfile(fn):
     return keys
 
 
-
 ## Make some graphs ##
+
 
 def graph_metalicity(galaxy):
     graph_number = get_graph_number()
@@ -516,7 +539,7 @@ def graph_metalicity(galaxy):
     OH = numpy.array(OH)
     r = numpy.array(r)
     r = r / galaxy.r25
-    pylab.figure(figsize=(5,5), num=graph_number)
+    pylab.figure(figsize=(5, 5), num=graph_number)
     pylab.xlabel('$R/R_{25}$')
     pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
     #plot the data
@@ -535,6 +558,7 @@ def graph_metalicity(galaxy):
     pylab.text(1.505, 8.665, '$Z_\odot$')
     pylab.savefig('tables/%s_metals.eps' % galaxy.id, format='eps')
 
+
 def graph_SFR(galaxy):
     graph_number = get_graph_number()
     spectra = galaxy.spectra
@@ -548,7 +572,7 @@ def graph_SFR(galaxy):
     SFR = numpy.array(SFR)
     r = numpy.array(r)
     r = r / galaxy.r25
-    pylab.figure(figsize=(5,5), num=graph_number)
+    pylab.figure(figsize=(5, 5), num=graph_number)
     pylab.xlabel('$R/R_{25}$')
     pylab.ylabel('$SFR (M_\odot/\\textnormal{year})$')
     #plot the data
@@ -558,9 +582,10 @@ def graph_SFR(galaxy):
     pylab.axis(v)
     pylab.savefig('tables/%s_sfr.eps' % galaxy.id, format='eps')
 
+
 def graph_SFR_metals(galaxy):
     graph_number = get_graph_number()
-    pylab.figure(figsize=(5,5), num=graph_number)
+    pylab.figure(figsize=(5, 5), num=graph_number)
     pylab.xlabel('SFR(M$_\odot$ / year)')
     pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
     spectra = galaxy.spectra
@@ -574,7 +599,7 @@ def graph_SFR_metals(galaxy):
     pylab.plot(SFR, OH, 'co')
     v = pylab.axis()
     v = (0, v[1], 8.0, 9.7)
-    t = numpy.arange(0, v[1]*1.5, v[1]*0.05)
+    t = numpy.arange(0, v[1] * 1.5, v[1] * 0.05)
     #overplot solar metalicity
     solardata = 8.69 + t * 0
     pylab.plot(t, solardata, 'k--')
@@ -582,9 +607,10 @@ def graph_SFR_metals(galaxy):
     pylab.axis((v[0], v[1], 8.0, 9.7))
     pylab.savefig('tables/%s_sfr-metal.eps' % galaxy.id, format='eps')
 
+
 def compare_basic(galaxies, other):
     graph_number = get_graph_number()
-    pylab.figure(figsize=(5,5), num=graph_number)
+    pylab.figure(figsize=(5, 5), num=graph_number)
     pylab.xlabel('$R/R_{25}$')
     pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
     #overplot solar metalicity
@@ -618,9 +644,10 @@ def compare_basic(galaxies, other):
     pylab.axis((0, 1.5, 8.0, 9.7))
     pylab.savefig('tables/basic_comparison.eps', format='eps')
 
+
 def compare_type(galaxies, other):
     graph_number = get_graph_number()
-    pylab.figure(figsize=(5,5), num=graph_number)
+    pylab.figure(figsize=(5, 5), num=graph_number)
     pylab.xlabel('$R/R_{25}$')
     pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
     #overplot solar metalicity
@@ -665,9 +692,10 @@ def compare_type(galaxies, other):
     pylab.axis((0, 1.5, 8.0, 9.7))
     pylab.savefig('tables/type_comparison.eps', format='eps')
 
+
 def compare_bar(galaxies, other):
     graph_number = get_graph_number()
-    pylab.figure(figsize=(5,5), num=graph_number)
+    pylab.figure(figsize=(5, 5), num=graph_number)
     pylab.xlabel('$R/R_{25}$')
     pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
     #overplot solar metalicity
@@ -708,9 +736,10 @@ def compare_bar(galaxies, other):
     pylab.axis((0, 1.5, 8.0, 9.7))
     pylab.savefig('tables/bar_comparison.eps', format='eps')
 
+
 def compare_ring(galaxies, other):
     graph_number = get_graph_number()
-    pylab.figure(figsize=(5,5), num=graph_number)
+    pylab.figure(figsize=(5, 5), num=graph_number)
     pylab.xlabel('$R/R_{25}$')
     pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
     #overplot solar metalicity
@@ -751,9 +780,10 @@ def compare_ring(galaxies, other):
     pylab.axis((0, 1.5, 8.0, 9.7))
     pylab.savefig('tables/ring_comparison.eps', format='eps')
 
+
 def compare_env(galaxies, other):
     graph_number = get_graph_number()
-    pylab.figure(figsize=(5,5), num=graph_number)
+    pylab.figure(figsize=(5, 5), num=graph_number)
     pylab.xlabel('$R/R_{25}$')
     pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
     #overplot solar metalicity
@@ -797,6 +827,7 @@ def compare_env(galaxies, other):
 
 ## Make some tables ##
 
+
 def make_data_table(galaxy):
     spectra = galaxy.spectra
     values = ['rdistance', 'OH', 'SFR']
@@ -826,6 +857,7 @@ def make_data_table(galaxy):
     fn = 'tables/%s.tex' % galaxy.id
     with open(fn, 'w') as f:
         f.write(string)
+
 
 def make_flux_table(galaxy):
     spectra = galaxy.spectra
@@ -866,10 +898,11 @@ def make_flux_table(galaxy):
     with open(fn, 'w') as f:
         f.write(string)
 
+
 def compare_type_table(galaxies, other):
     keys = ['grad', 'metal']
     lookup = {
-        'grad': 'Gradient (dex/R$_{25}$)', 
+        'grad': 'Gradient (dex/R$_{25}$)',
         'metal': 'Metalicity at 0.4R$_{25}$',
     }
     for item in other:
@@ -908,10 +941,11 @@ def compare_type_table(galaxies, other):
     with open(fn, 'w') as f:
         f.write(string)
 
+
 def compare_bar_table(galaxies, other):
     keys = ['grad', 'metal']
     lookup = {
-        'grad': 'Gradient (dex/R$_{25}$)', 
+        'grad': 'Gradient (dex/R$_{25}$)',
         'metal': 'Metalicity at 0.4R$_{25}$',
     }
     for item in other:
@@ -944,10 +978,11 @@ def compare_bar_table(galaxies, other):
     with open(fn, 'w') as f:
         f.write(string)
 
+
 def compare_ring_table(galaxies, other):
     keys = ['grad', 'metal']
     lookup = {
-        'grad': 'Gradient (dex/R$_{25}$)', 
+        'grad': 'Gradient (dex/R$_{25}$)',
         'metal': 'Metalicity at 0.4R$_{25}$',
     }
     for item in other:
@@ -980,10 +1015,11 @@ def compare_ring_table(galaxies, other):
     with open(fn, 'w') as f:
         f.write(string)
 
+
 def compare_env_table(galaxies, other):
     keys = ['grad', 'metal']
     lookup = {
-        'grad': 'Gradient (dex/R$_{25}$)', 
+        'grad': 'Gradient (dex/R$_{25}$)',
         'metal': 'Metalicity at 0.4R$_{25}$',
     }
     for item in other:
@@ -1016,10 +1052,11 @@ def compare_env_table(galaxies, other):
     with open(fn, 'w') as f:
         f.write(string)
 
+
 def make_comparison_table(galaxies, other):
     keys = ['grad', 'metal', 'type', 'bar', 'ring', 'env', 'regions']
     lookup = {
-        'grad': 'Gradient (dex/R$_{25}$)', 
+        'grad': 'Gradient (dex/R$_{25}$)',
         'metal': 'Metalicity at 0.4R$_{25}$',
         'type': 'Hubble Type',
         'bar': 'Bar',
@@ -1119,6 +1156,7 @@ def main():
     compare_bar_table(galaxies, other_data)
     compare_ring_table(galaxies, other_data)
     compare_env_table(galaxies, other_data)
-    
 
-main()
+
+if __name__ == '__main__':
+    main()

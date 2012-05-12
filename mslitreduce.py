@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import os, subprocess
+import os
+import subprocess
 from argparse import ArgumentParser
 from iraf_base import apsum, calibrate, ccdproc, combine, dispcor, flatcombine
 from iraf_base import fix_image, hedit, imcopy, rotate, setairmass, zerocombine
@@ -11,18 +12,20 @@ from data import init_data, set_obj, get_groups, get_data, write_data
 
 ## Higher level IRAF wrappers ##
 
+
 def apsum_galaxy(name):
     data = get_data(name)
     if not os.path.isdir('%s/sum' % name):
         os.mkdir('%s/sum' % name)
     for i, item in enumerate(data):
         num = zerocount(i)
-        apsum('%s/slice/%s' % (name, num), 
+        apsum('%s/slice/%s' % (name, num),
             '%s/sum/%s.1d' % (name, num), item['section'])
-        apsum('%s/slice/%sc' % (name, num), 
+        apsum('%s/slice/%sc' % (name, num),
             '%s/sum/%sc.1d' % (name, num), item['section'])
         namefix('%s/sum/%s.1d' % (name, num))
         namefix('%s/sum/%sc.1d' % (name, num))
+
 
 def calibrate_galaxy(name, standard):
     """Calibrates all spectra in name with the standard specified"""
@@ -32,8 +35,9 @@ def calibrate_galaxy(name, standard):
     sens = '%s/sens' % standard
     for i, item in enumerate(data):
         num = zerocount(i)
-        calibrate('%s/sub/%s.1d' % (name, num), sens, 
+        calibrate('%s/sub/%s.1d' % (name, num), sens,
             '%s/cal/%s.1d' % (name, num))
+
 
 def dispcor_galaxy(name, use=None):
     if not os.path.isdir('%s/disp' % name):
@@ -42,8 +46,9 @@ def dispcor_galaxy(name, use=None):
     data = get_data(name)
     for i, item in enumerate(data):
         num = zerocount(i)
-        dispcor('%s/sum/%s.1d' % (name, num), 
+        dispcor('%s/sum/%s.1d' % (name, num),
             '%s/disp/%s.1d' % (name, num))
+
 
 def fix_galaxy(name, mask):
     imcopy('@lists/%s' % name, '%s/' % name)
@@ -51,14 +56,16 @@ def fix_galaxy(name, mask):
         items = ['%s/%s' % (name, item.strip()) for item in f.readlines()]
     fix_image(list_convert(items), mask)
 
+
 def hedit_galaxy(name, use=None):
     data = get_data(name)
     if not use:
         use = name
     for i, item in enumerate(data):
         num = zerocount(i)
-        hedit('%s/sum/%s.1d' % (name, num), 'REFSPEC1', 
+        hedit('%s/sum/%s.1d' % (name, num), 'REFSPEC1',
             '%s/sum/%sc.1d' % (use, num))
+
 
 def imcopy_galaxy(name):
     data = get_data(name)
@@ -66,13 +73,14 @@ def imcopy_galaxy(name):
         os.mkdir('%s/slice' % name)
     for i, item in enumerate(data):
         num = zerocount(i)
-        imcopy('%s/rot/%s%s' % (name, num, item['section']), 
+        imcopy('%s/rot/%s%s' % (name, num, item['section']),
             '%s/slice/%s' % (name, num))
-        imcopy('%s/rot/%sc%s' % (name, num, item['section']), 
+        imcopy('%s/rot/%sc%s' % (name, num, item['section']),
             '%s/slice/%sc' % (name, num))
 
+
 def init_galaxy(name, mask, zero, flat):
-    """Applies a bad pixel mask to all the images associated with name, 
+    """Applies a bad pixel mask to all the images associated with name,
     then runs ccdproc and combine"""
     if not os.path.isdir(name):
         os.mkdir(name)
@@ -82,16 +90,18 @@ def init_galaxy(name, mask, zero, flat):
     ccdproc(list_convert(items), zero=zero, flat=flat)
     combine(list_convert(items), '%s/base' % name)
 
+
 def rotate_galaxy(name, comp):
     data = get_data(name)
     if not os.path.isdir('%s/rot' % name):
         os.mkdir('%s/rot' % name)
     for i, item in enumerate(data):
         num = zerocount(i)
-        rotate('%s/base' % name, '%s/rot/%s' % (name, num), 
+        rotate('%s/base' % name, '%s/rot/%s' % (name, num),
             item['angle'])
-        rotate('@lists/%s' % comp, '%s/rot/%sc' % (name, num), 
+        rotate('@lists/%s' % comp, '%s/rot/%sc' % (name, num),
             item['angle'])
+
 
 def setairmass_galaxy(name):
     data = get_data(name)
@@ -100,8 +110,9 @@ def setairmass_galaxy(name):
         if item['type'] == 'HIIREGION':
             setairmass('%s/sub/%s.1d' % (name, num))
 
+
 def skies(name, lines, use=None, obj=None):
-    """Create a combined sky spectra, sky subtracts all object spectra, 
+    """Create a combined sky spectra, sky subtracts all object spectra,
     and sets airmass metadata"""
     if obj:
         set_obj(name, obj)
@@ -113,20 +124,22 @@ def skies(name, lines, use=None, obj=None):
     sky_subtract_galaxy(name, lines)
     setairmass_galaxy(name)
 
+
 def sky_subtract_galaxy(name, lines):
     data = get_data(name)
     os.mkdir('%s/tmp' % name)
     for i, item in enumerate(data):
         if item['type'] == 'HIIREGION':
-            if item.has_key('sky_level'):
+            if 'sky_level' in item:
                 regenerate_sky(name, item)
             else:
                 generate_sky(name, item, lines)
     write_data(name, data)
     subprocess.call(['rm', '-rf', '%s/tmp' % name])
 
+
 def slice_galaxy(name, comp, use=None):
-    """Separates the individuals slices of a galaxy out, 
+    """Separates the individuals slices of a galaxy out,
     and creates one dimensional spectra"""
     init_data(name, use=use)
     rotate_galaxy(name, comp)
@@ -138,14 +151,15 @@ def slice_galaxy(name, comp, use=None):
     except OSError:
         pass
 
+
 def zero_flats(mask, zeros, flats):
     """This function combines the zeros and flats for a night,
     then applies the bad pixel mask specified."""
     for zero in zeros:
-        zerocombine('@lists/%s' % zero, output = '%s.fits' % zero)
+        zerocombine('@lists/%s' % zero, output='%s.fits' % zero)
         fix_image(zero, mask)
     for flat in flats:
-        flatcombine('@lists/%s' % flat, output = '%s.fits' % flat)
+        flatcombine('@lists/%s' % flat, output='%s.fits' % flat)
         fix_image(flat, mask)
 
 
@@ -163,24 +177,29 @@ def init(groups):
     # a single night needs more than one mask.
     zero_flats(groups[0]['mask'], zeros, flats)
     for group in groups:
-        init_galaxy(group['galaxy'], group['mask'], group['zero'], group['flat'])
+        init_galaxy(group['galaxy'], group['mask'], group['zero'],
+                    group['flat'])
         init_galaxy(group['star'], group['mask'], group['zero'], group['flat'])
+
 
 def slice(groups):
     for group in groups:
         slice_galaxy(group['galaxy'], group['lamp'])
         slice_galaxy(group['star'], group['lamp'], use=group['galaxy'])
 
+
 def disp(groups):
     for group in groups:
         dispcor_galaxy(group['galaxy'])
         dispcor_galaxy(group['star'], use=group['galaxy'])
+
 
 def sky(groups):
     lines = [5893, 5578, 6301, 6365]
     for group in groups:
         skies(group['galaxy'], lines)
         skies(group['star'], lines, obj=group['star_num'])
+
 
 def calibration(groups):
     for group in groups:
@@ -195,6 +214,7 @@ def main(command, path):
                 'sky': sky, 'calibrate': calibration}
     os.chdir(path)
     commands[command](groups)
+
 
 def parse_args():
     parser = ArgumentParser(description='')
