@@ -1,9 +1,8 @@
 import os, subprocess
-import pyfits, scipy
-from generic import rms, std, avg, zerocount
+import pyfits, scipy.optimize
+from misc import rms, std, avg, zerocount, list_convert
 from data import get_data, write_data
-from iraf import sarith, imcopy, scombine
-from iraf import list_convert
+from iraf_base import sarith, imcopy, scombine
 
 ##########################################
 ## Functions related to sky subtraction ##

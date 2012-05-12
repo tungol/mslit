@@ -1,6 +1,6 @@
 import math
 import yaml
-from generic import avg
+from misc import avg
 
 ####################################################
 ## Functions for working with the metadata I have ##
@@ -10,22 +10,19 @@ from generic import avg
 
 def get_raw_data(name):
     fn = 'input/%s-generated.yaml' % name
-    data_file = open(fn, 'r')
-    raw_data = yaml.load(data_file)
-    data_file.close()
+    with open(fn) as f:
+        raw_data = yaml.load(f)
     return raw_data
 
 def write_raw_data(name, raw_data):
     fn = 'input/%s-generated.yaml' % name
-    data_file = open(fn, 'w')
-    yaml.dump(raw_data, data_file)
-    data_file.close()
+    with open(fn, 'w') as f:
+        yaml.dump(raw_data, f)
 
 def read_out_file(name):
     fn = 'input/%s.out' % name
-    out_file = open(fn, 'r')
-    raw_out = out_file.readlines()
-    out_file.close()
+    with open(fn) as f:
+        raw_out = f.readlines()
     return raw_out
 
 def get_pixel_sizes(name):

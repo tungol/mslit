@@ -3,31 +3,18 @@
 
 import os, subprocess
 from argparse import ArgumentParser
-from iraf import ccdproc, combine, zerocombine, flatcombine, fixpix
-from iraf import apsum, dispcor, imcopy, hedit, rotate, setairmass
-from iraf import list_convert
+from iraf_base import apsum, calibrate, ccdproc, combine, dispcor, flatcombine
+from iraf_base import fix_image, hedit, imcopy, rotate, setairmass, zerocombine
+from misc import list_convert, namefix, zerocount
 from sky import combine_sky_spectra, generate_sky, regenerate_sky
 from data import init_data, set_obj, get_groups, get_data, write_data
-from generic import zerocount
 
-
-## Functions to smooth over the interface to IRAF ##
-
-def namefix(name):
-    """Rename files to get rid of silly naming scheme of apsum"""
-    os.rename('%s.0001.fits' % name, '%s.fits' % name)
-
-def fix_image(image, mask):
-    """Apply a bad pixel mask to an image"""
-    hedit(image, 'BPM', mask)
-    fixpix(image, 'BPM', verbose='yes')
-
-
-## Functions that wrap IRAF functions, applied across many items at once ##
+## Higher level IRAF wrappers ##
 
 def apsum_galaxy(name):
     data = get_data(name)
-    os.mkdir('%s/sum' % name)
+    if not os.path.isdir('%s/sum' % name):
+        os.mkdir('%s/sum' % name)
     for i, item in enumerate(data):
         num = zerocount(i)
         apsum('%s/slice/%s' % (name, num), 
@@ -39,7 +26,8 @@ def apsum_galaxy(name):
 
 def calibrate_galaxy(name, standard):
     """Calibrates all spectra in name with the standard specified"""
-    os.mkdir('%s/cal' % name)
+    if not os.path.isdir('%s/cal' % name):
+        os.mkdir('%s/cal' % name)
     data = get_data(name)
     sens = '%s/sens' % standard
     for i, item in enumerate(data):
@@ -48,7 +36,8 @@ def calibrate_galaxy(name, standard):
             '%s/cal/%s.1d' % (name, num))
 
 def dispcor_galaxy(name, use=None):
-    os.mkdir('%s/disp' % name)
+    if not os.path.isdir('%s/disp' % name):
+        os.mkdir('%s/disp' % name)
     hedit_galaxy(name, use=use)
     data = get_data(name)
     for i, item in enumerate(data):
@@ -59,7 +48,7 @@ def dispcor_galaxy(name, use=None):
 def fix_galaxy(name, mask):
     imcopy('@lists/%s' % name, '%s/' % name)
     with open('lists/%s' % name) as f:
-        items = ['%s/%s' % (name, item) for item in f.readlines()]
+        items = ['%s/%s' % (name, item.strip()) for item in f.readlines()]
     fix_image(list_convert(items), mask)
 
 def hedit_galaxy(name, use=None):
@@ -73,7 +62,8 @@ def hedit_galaxy(name, use=None):
 
 def imcopy_galaxy(name):
     data = get_data(name)
-    os.mkdir('%s/slice' % name)
+    if not os.path.isdir('%s/slice' % name):
+        os.mkdir('%s/slice' % name)
     for i, item in enumerate(data):
         num = zerocount(i)
         imcopy('%s/rot/%s%s' % (name, num, item['section']), 
@@ -84,22 +74,18 @@ def imcopy_galaxy(name):
 def init_galaxy(name, mask, zero, flat):
     """Applies a bad pixel mask to all the images associated with name, 
     then runs ccdproc and combine"""
-    try:
+    if not os.path.isdir(name):
         os.mkdir(name)
-    except OSError:
-        pass
     fix_galaxy(name, mask)
     with open('lists/%s' % name) as f:
-        items = ['%s/%s' % (name, item) for item in f.readlines()]
+        items = ['%s/%s' % (name, item.strip()) for item in f.readlines()]
     ccdproc(list_convert(items), zero=zero, flat=flat)
     combine(list_convert(items), '%s/base' % name)
 
 def rotate_galaxy(name, comp):
     data = get_data(name)
-    try:
+    if not os.path.isdir('%s/rot' % name):
         os.mkdir('%s/rot' % name)
-    except:
-        pass
     for i, item in enumerate(data):
         num = zerocount(i)
         rotate('%s/base' % name, '%s/rot/%s' % (name, num), 
@@ -119,9 +105,11 @@ def skies(name, lines, use=None, obj=None):
     and sets airmass metadata"""
     if obj:
         set_obj(name, obj)
-    os.mkdir('%s/sky' % name)
+    if not os.path.isdir('%s/sky' % name):
+        os.mkdir('%s/sky' % name)
     combine_sky_spectra(name, use=use)
-    os.mkdir('%s/sub' % name)
+    if not os.path.isdir('%s/sub' % name):
+        os.mkdir('%s/sub' % name)
     sky_subtract_galaxy(name, lines)
     setairmass_galaxy(name)
 
@@ -194,7 +182,7 @@ def sky(groups):
         skies(group['galaxy'], lines)
         skies(group['star'], lines, obj=group['star_num'])
 
-def calibrate(groups):
+def calibration(groups):
     for group in groups:
         calibrate_galaxy(group['galaxy'], group['star'])
 
@@ -204,7 +192,7 @@ def calibrate(groups):
 def main(command, path):
     groups = get_groups(path)
     commands = {'init': init, 'slice': slice, 'disp': disp,
-                'sky': sky, 'calibrate': calibrate}
+                'sky': sky, 'calibrate': calibration}
     os.chdir(path)
     commands[command](groups)
 

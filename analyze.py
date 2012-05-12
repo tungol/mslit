@@ -322,9 +322,8 @@ class GalaxyClass:
             stop = start + 3
             return line[start:stop]
         
-        file = open('%s/measurements/%s.log' % (self.id, fn))
-        raw = file.readlines()
-        file.close()
+        with open('%s/measurements/%s.log' % (self.id, fn)) as f:
+            raw = f.readlines()
         for line in raw:
             if is_spectra_head(line):
                 num = get_num(line)
@@ -420,9 +419,8 @@ class GalaxyClass:
 ## Functions for reading in tables of data ##
 
 def get_galaxies(fn, keys):
-    gfile = open('../other_data/%s' % fn, 'r')
-    raw = gfile.readlines()
-    gfile.close()
+    with open('../other_data/%s' % fn) as f:
+        raw = f.readlines()
     galaxies = []
     current = None
     number = None
@@ -482,9 +480,8 @@ def get_other():
     return others
 
 def parse_keyfile(fn):
-    keyfile = open('../other_data/%s' % fn, 'r')
-    raw = keyfile.readlines()
-    keyfile.close()
+    with open('../other_data/%s' % fn) as f:
+        raw = f.readlines()
     keys = {}
     for line in raw:
         if line[0:3] == 'ngc':
@@ -827,9 +824,8 @@ def make_data_table(galaxy):
     string += '\\bottomrule\n'
     string += '\\end{tabular}\n'
     fn = 'tables/%s.tex' % galaxy.id
-    file = open(fn, 'w')
-    file.write(string)
-    file.close()
+    with open(fn, 'w') as f:
+        f.write(string)
 
 def make_flux_table(galaxy):
     spectra = galaxy.spectra
@@ -867,9 +863,8 @@ def make_flux_table(galaxy):
     string += '\\bottomrule\n'
     string += '\\end{tabular}\n'
     fn = 'tables/%sflux.tex' % galaxy.id
-    file = open(fn, 'w')        
-    file.write(string)
-    file.close()
+    with open(fn, 'w') as f:
+        f.write(string)
 
 def compare_type_table(galaxies, other):
     keys = ['grad', 'metal']
@@ -910,9 +905,8 @@ def compare_type_table(galaxies, other):
         string += '& %s ' % sigfigs_format(group4[value][1], 2)
     string += '\\\\\n'
     fn = 'tables/type_comparison.tex'
-    file = open(fn, 'w')
-    file.write(string)
-    file.close()
+    with open(fn, 'w') as f:
+        f.write(string)
 
 def compare_bar_table(galaxies, other):
     keys = ['grad', 'metal']
@@ -947,9 +941,8 @@ def compare_bar_table(galaxies, other):
         string += '& %s ' % sigfigs_format(group3[value][1], 2)
     string += '\\\\\n'
     fn = 'tables/bar_comparison.tex'
-    file = open(fn, 'w')
-    file.write(string)
-    file.close()
+    with open(fn, 'w') as f:
+        f.write(string)
 
 def compare_ring_table(galaxies, other):
     keys = ['grad', 'metal']
@@ -984,9 +977,8 @@ def compare_ring_table(galaxies, other):
         string += '& %s ' % sigfigs_format(group3[value][1], 2)
     string += '\\\\\n'
     fn = 'tables/ring_comparison.tex'
-    file = open(fn, 'w')
-    file.write(string)
-    file.close()
+    with open(fn, 'w') as f:
+        f.write(string)
 
 def compare_env_table(galaxies, other):
     keys = ['grad', 'metal']
@@ -1021,9 +1013,8 @@ def compare_env_table(galaxies, other):
         string += '& %s ' % sigfigs_format(group3[value][1], 2)
     string += '\\\\\n'
     fn = 'tables/env_comparison.tex'
-    file = open(fn, 'w')
-    file.write(string)
-    file.close()
+    with open(fn, 'w') as f:
+        f.write(string)
 
 def make_comparison_table(galaxies, other):
     keys = ['grad', 'metal', 'type', 'bar', 'ring', 'env', 'regions']
@@ -1078,9 +1069,8 @@ def make_comparison_table(galaxies, other):
     string += '\\bottomrule\n'
     string += '\\end{tabular}\n'
     fn = 'tables/comparison.tex'
-    file = open(fn, 'w')
-    file.write(string)
-    file.close()
+    with open(fn, 'w') as f:
+        f.write(string)
 
 
 def main():
