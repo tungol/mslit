@@ -344,7 +344,10 @@ def mklist(name):
 def init_galaxy(name, mask, zero, flat):
     """Applies a bad pixel mask to all the images associated with name, 
     then runs ccdproc and combine"""
-    os.mkdir(name)
+    try:
+        os.mkdir(name)
+    except OSError:
+        pass
     mklist(name)
     fix_galaxy(name, mask)
     ccdproc('@lists/%s-generated' % name, zero=zero, flat=flat)

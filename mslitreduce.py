@@ -40,7 +40,7 @@ def disp(groups):
         disp_galaxy(group['galaxy'])
         disp_galaxy(group['star'], use=group['galaxy'])
 
-def skysubtract(groups):
+def sky(groups):
     lines = [5893, 5578, 6301, 6365]
     for group in groups:
         skies(group['galaxy'], lines)
@@ -53,7 +53,7 @@ def calibrate(groups):
 def main(command, path):
     groups = get_groups(path)
     commands = {'init': init, 'slice': slice, 'disp': disp,
-                'skysubtract': skysubtract, 'calibrate': calibrate}
+                'sky': sky, 'calibrate': calibrate}
     os.chdir(path)
     commands[command](groups)
 
