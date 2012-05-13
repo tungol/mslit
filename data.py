@@ -1,19 +1,36 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+"""
+data.py - contains functions for working with metadata about the observations
+
+low level: get_pixel_sizes, get_raw_data, read_out_file, write_raw_data
+"""
+
 import math
 import yaml
 from misc import avg
 
-####################################################
-## Functions for working with the metadata I have ##
-####################################################
-
 ## Functions for low level reading, parsing, and writing ##
+
+
+def get_pixel_sizes(name):
+    """Load the pixel location records from user-created YAML file."""
+    fn = 'input/%s.yaml' % name
+    with open(fn) as f:
+        return yaml.load(f.read())
 
 
 def get_raw_data(name):
     fn = 'input/%s-generated.yaml' % name
     with open(fn) as f:
-        raw_data = yaml.load(f)
-    return raw_data
+        return yaml.load(f)
+
+
+def read_out_file(name):
+    fn = 'input/%s.out' % name
+    with open(fn) as f:
+        return f.readlines()
 
 
 def write_raw_data(name, raw_data):
@@ -21,19 +38,6 @@ def write_raw_data(name, raw_data):
     with open(fn, 'w') as f:
         yaml.dump(raw_data, f)
 
-
-def read_out_file(name):
-    fn = 'input/%s.out' % name
-    with open(fn) as f:
-        raw_out = f.readlines()
-    return raw_out
-
-
-def get_pixel_sizes(name):
-    fn = 'input/%s.yaml' % name
-    with open(fn) as f:
-        data = yaml.load(f.read())
-    return data
 
 ## Functions for basic manipulation ##
 
@@ -107,18 +111,18 @@ def get_angles(raw_data):
 
 
 def get_coord(pixel_sizes, real_start, real_end, data):
+
+    def convert(real_value, pixel):
+        real_value = float(real_value)
+        pixel_start = float(pixel['start'])
+        pixel_end = float(pixel['end'])
+        pixel_size = pixel_end - pixel_start
+        return (((real_value - real_start) *
+            (pixel_size / real_size)) + pixel_start)
+
     real_size = real_end - real_start
     coord = {}
     for pcol in pixel_sizes:
-        
-        def convert(real_value, pixel):
-            real_value = float(real_value)
-            pixel_start = float(pixel['start'])
-            pixel_end = float(pixel['end'])
-            pixel_size = pixel_end - pixel_start
-            return (((real_value - real_start) *
-                (pixel_size / real_size)) + pixel_start)
-        
         coord.update({pcol['column']: []})
         for item in data:
             start = convert(item['xlo'], pcol)

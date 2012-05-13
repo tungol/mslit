@@ -3,8 +3,8 @@ import subprocess
 import pyfits
 import scipy.optimize
 from misc import rms, std, avg, zerocount, list_convert
-from data import get_data, write_data
-from iraf_base import sarith, imcopy, scombine
+from data import get_data
+from iraf import sarith, imcopy, scombine
 
 ##########################################
 ## Functions related to sky subtraction ##
@@ -158,21 +158,3 @@ def combine_sky_spectra(name, use=None, **kwargs):
             '%s/sky/%s.scaled' % (name, num))
         flist.append('%s/sky/%s.scaled' % (name, num))
     scombine(list_convert(flist), '%s/sky.1d' % name, **kwargs)
-
-
-def modify_sky(path, name, number, op, value):
-    os.chdir(path)
-    number = int(number)
-    value = float(value)
-    data = get_data(name)
-    item = data[number]
-    sky_level = item['sky_level']
-    if op == '+':
-        new_sky_level = sky_level + value
-    elif op == '-':
-        new_sky_level = sky_level - value
-    item.update({'sky_level': new_sky_level})
-    write_data(name, data)
-    os.mkdir('%s/tmp' % name)
-    regenerate_sky(name, item)
-    subprocess.call(['rm', '-rf', '%s/tmp' % name])

@@ -4,8 +4,8 @@
 import os
 import subprocess
 from argparse import ArgumentParser
-from iraf_base import apsum, calibrate, ccdproc, combine, dispcor, flatcombine
-from iraf_base import fix_image, hedit, imcopy, rotate, setairmass, zerocombine
+from iraf import apsum, calibrate, ccdproc, combine, dispcor, flatcombine
+from iraf import fix_image, hedit, imcopy, rotate, setairmass, zerocombine
 from misc import list_convert, namefix, zerocount
 from sky import combine_sky_spectra, generate_sky, regenerate_sky
 from data import init_data, set_obj, get_groups, get_data, write_data
