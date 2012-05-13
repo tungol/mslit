@@ -34,6 +34,14 @@ def rms(*args):
     return math.sqrt(avg(*squares))
 
 
+def threshold_round(number, threshold):
+    """Round a number using a configurable threshold value."""
+    if math.modf(number)[0] < threshold:
+        return int(math.floor(number))
+    else:
+        return int(math.ceil(number))
+
+
 def std(*args):
     """Return the standard deviation of a list of values."""
     mean = avg(*args)

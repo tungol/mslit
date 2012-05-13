@@ -2,9 +2,9 @@ import os
 import subprocess
 import pyfits
 import scipy.optimize
-from misc import rms, std, avg, zerocount, list_convert
-from data import get_data
-from iraf import sarith, imcopy, scombine
+from misc import rms, std, avg, zerocount
+from iraf import sarith, imcopy, scombine, list_convert
+from data import get_sizes, get_types
 
 ##########################################
 ## Functions related to sky subtraction ##
@@ -81,9 +81,8 @@ def get_std_sky(scale, name, num, lines):
     return avg(*deviations)
 
 
-def guess_scaling(name, spectra, sky, lines):
-    number = spectra['number']
-    name = '%s/disp/%s.1d.fits' % (name, zerocount(number))
+def guess_scaling(name, spectrum, sky, lines):
+    name = '%s/disp/%s.1d.fits' % (name, zerocount(spectrum))
     skyname = '%s.fits' % sky
     spectrafits = pyfits.open(name)
     skyfits = pyfits.open(skyname)
@@ -95,27 +94,25 @@ def guess_scaling(name, spectra, sky, lines):
         scalings.append(scale)
     return avg(*scalings)
 
+
 ## Functions wrapping the solvers and providing output ##
 
 
-def generate_sky(name, item, lines):
-    num = zerocount(item['number'])
+def generate_sky(name, spectrum, lines):
+    num = zerocount(spectrum)
     sky = '%s/sky.1d' % name
-    xopt = float(sky_subtract(name, item, sky, lines))
-    print '\tSolution for %s: %s' % (num, xopt)
-    print '\tSolution divided by width: %s' % (xopt / item['size'])
+    xopt = float(sky_subtract(name, spectrum, sky, lines))
     tmp_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
     tmp_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
     out_fn = '%s/sub/%s.1d' % (name, num)
     out_sky = '%s/sky/%s.sky.1d' % (name, num)
     imcopy(tmp_fn, out_fn)
     imcopy(tmp_sky, out_sky)
-    item.update({'sky_level': xopt})
+    return xopt
 
 
-def regenerate_sky(name, item):
-    num = zerocount(item['number'])
-    sky_level = item['sky_level']
+def regenerate_sky(name, spectrum, sky_level):
+    num = zerocount(spectrum)
     in_fn = '%s/disp/%s.1d' % (name, num)
     in_sky = '%s/sky.1d' % name
     tmp_fn = '%s/tmp/%s.1d' % (name, num)
@@ -130,31 +127,39 @@ def regenerate_sky(name, item):
     imcopy(tmp_fn, out_fn)
 
 
-def sky_subtract(name, spectra, sky, lines):
-    num = zerocount(spectra['number'])
-    guess = guess_scaling(name, spectra, sky, lines)
+def sky_subtract(name, spectrum, sky, lines):
+    num = zerocount(spectrum)
+    guess = guess_scaling(name, spectrum, sky, lines)
     # fmin
     os.mkdir('%s/tmp/%s' % (name, num))
     xopt = scipy.optimize.fmin(get_std_sky, guess,
         args=(name, num, lines), xtol=0.001)
     return xopt
 
+
 ## Other functions relating to sky subtraction ##
 
 
-def combine_sky_spectra(name, use=None, **kwargs):
+def get_sky_list(name, star_num):
+    sky_types = ['NIGHTSKY']
+    items = get_types(name)
+    if star_num:
+        items.pop(star_num)
+        sky_types.append('HIIREGION')
+    sky_list = [i for i, x in enumerate(items) if x in sky_types]
+    return sky_list
+
+
+def combine_sky_spectra(name, use=None, star_num=None):
     if not use:
         use = name
-    data = get_data(use)
-    list = []
-    for i, item in enumerate(data):
-        if item['type'] == 'NIGHTSKY':
-            list.append(i)
+    sky_list = get_sky_list(name, star_num)
+    sizes = get_sizes(name)
     flist = []
-    for spectra in list:
-        scale = data[spectra]['size']
+    for spectra in sky_list:
+        scale = sizes[spectra]['size']
         num = zerocount(spectra)
         sarith('%s/disp/%s.1d' % (use, num), '/', scale,
             '%s/sky/%s.scaled' % (name, num))
         flist.append('%s/sky/%s.scaled' % (name, num))
-    scombine(list_convert(flist), '%s/sky.1d' % name, **kwargs)
+    scombine(list_convert(flist), '%s/sky.1d' % name)

@@ -6,23 +6,25 @@ import subprocess
 from argparse import ArgumentParser
 from iraf import apsum, calibrate, ccdproc, combine, dispcor, flatcombine
 from iraf import fix_image, hedit, imcopy, rotate, setairmass, zerocombine
-from misc import list_convert, namefix, zerocount
+from iraf import list_convert, namefix
+from misc import zerocount
 from sky import combine_sky_spectra, generate_sky, regenerate_sky
-from data import init_data, set_obj, get_groups, get_data, write_data
+from data import init_data, get_groups, get_sections, get_object_spectra
+from data import get_angles, get_sky_levels, write_sky_levels
 
 ## Higher level IRAF wrappers ##
 
 
 def apsum_galaxy(name):
-    data = get_data(name)
+    sections = get_sections(name)
     if not os.path.isdir('%s/sum' % name):
         os.mkdir('%s/sum' % name)
-    for i, item in enumerate(data):
+    for i, section in enumerate(sections):
         num = zerocount(i)
         apsum('%s/slice/%s' % (name, num),
-            '%s/sum/%s.1d' % (name, num), item['section'])
+            '%s/sum/%s.1d' % (name, num), section)
         apsum('%s/slice/%sc' % (name, num),
-            '%s/sum/%sc.1d' % (name, num), item['section'])
+            '%s/sum/%sc.1d' % (name, num), section)
         namefix('%s/sum/%s.1d' % (name, num))
         namefix('%s/sum/%sc.1d' % (name, num))
 
@@ -31,21 +33,24 @@ def calibrate_galaxy(name, standard):
     """Calibrates all spectra in name with the standard specified"""
     if not os.path.isdir('%s/cal' % name):
         os.mkdir('%s/cal' % name)
-    data = get_data(name)
     sens = '%s/sens' % standard
-    for i, item in enumerate(data):
-        num = zerocount(i)
+    spectra = get_object_spectra(name)
+    for spectrum in spectra:
+        num = zerocount(spectrum)
         calibrate('%s/sub/%s.1d' % (name, num), sens,
             '%s/cal/%s.1d' % (name, num))
 
 
 def dispcor_galaxy(name, use=None):
+    if not use:
+        use = name
     if not os.path.isdir('%s/disp' % name):
         os.mkdir('%s/disp' % name)
-    hedit_galaxy(name, use=use)
-    data = get_data(name)
-    for i, item in enumerate(data):
-        num = zerocount(i)
+    spectra = get_object_spectra(name)
+    for spectrum in spectra:
+        num = zerocount(spectrum)
+        hedit('%s/sum/%s.1d' % (name, num), 'REFSPEC1',
+            '%s/sum/%sc.1d' % (use, num))
         dispcor('%s/sum/%s.1d' % (name, num),
             '%s/disp/%s.1d' % (name, num))
 
@@ -57,25 +62,15 @@ def fix_galaxy(name, mask):
     fix_image(list_convert(items), mask)
 
 
-def hedit_galaxy(name, use=None):
-    data = get_data(name)
-    if not use:
-        use = name
-    for i, item in enumerate(data):
-        num = zerocount(i)
-        hedit('%s/sum/%s.1d' % (name, num), 'REFSPEC1',
-            '%s/sum/%sc.1d' % (use, num))
-
-
 def imcopy_galaxy(name):
-    data = get_data(name)
     if not os.path.isdir('%s/slice' % name):
         os.mkdir('%s/slice' % name)
-    for i, item in enumerate(data):
+    sections = get_sections(name)
+    for i, section in enumerate(sections):
         num = zerocount(i)
-        imcopy('%s/rot/%s%s' % (name, num, item['section']),
+        imcopy('%s/rot/%s%s' % (name, num, section),
             '%s/slice/%s' % (name, num))
-        imcopy('%s/rot/%sc%s' % (name, num, item['section']),
+        imcopy('%s/rot/%sc%s' % (name, num, section),
             '%s/slice/%sc' % (name, num))
 
 
@@ -92,30 +87,25 @@ def init_galaxy(name, mask, zero, flat):
 
 
 def rotate_galaxy(name, comp):
-    data = get_data(name)
     if not os.path.isdir('%s/rot' % name):
         os.mkdir('%s/rot' % name)
-    for i, item in enumerate(data):
+    angles = get_angles(name)
+    for i, angle in enumerate(angles):
         num = zerocount(i)
-        rotate('%s/base' % name, '%s/rot/%s' % (name, num),
-            item['angle'])
-        rotate('@lists/%s' % comp, '%s/rot/%sc' % (name, num),
-            item['angle'])
+        rotate('%s/base' % name, '%s/rot/%s' % (name, num), angle)
+        rotate('@lists/%s' % comp, '%s/rot/%sc' % (name, num), angle)
 
 
 def setairmass_galaxy(name):
-    data = get_data(name)
-    for i, item in enumerate(data):
-        num = zerocount(i)
-        if item['type'] == 'HIIREGION':
-            setairmass('%s/sub/%s.1d' % (name, num))
+    spectra = get_object_spectra(name)
+    for spectrum in spectra:
+        num = zerocount(spectrum)
+        setairmass('%s/sub/%s.1d' % (name, num))
 
 
-def skies(name, lines, use=None, obj=None):
+def skies(name, lines, use=None):
     """Create a combined sky spectra, sky subtracts all object spectra,
     and sets airmass metadata"""
-    if obj:
-        set_obj(name, obj)
     if not os.path.isdir('%s/sky' % name):
         os.mkdir('%s/sky' % name)
     combine_sky_spectra(name, use=use)
@@ -126,15 +116,16 @@ def skies(name, lines, use=None, obj=None):
 
 
 def sky_subtract_galaxy(name, lines):
-    data = get_data(name)
+    spectra = get_object_spectra(name)
+    sky_levels = get_sky_levels(name)
     os.mkdir('%s/tmp' % name)
-    for item in data:
-        if item['type'] == 'HIIREGION':
-            if 'sky_level' in item:
-                regenerate_sky(name, item)
-            else:
-                generate_sky(name, item, lines)
-    write_data(name, data)
+    for spectrum in spectra:
+        sky_level = sky_levels[spectrum]
+        if sky_level:
+            regenerate_sky(name, spectrum, sky_level)
+        else:
+            sky_levels[spectrum] = generate_sky(name, spectrum, lines)
+    write_sky_levels(name, sky_levels)
     subprocess.call(['rm', '-rf', '%s/tmp' % name])
 
 
@@ -198,7 +189,7 @@ def sky(groups):
     lines = [5893, 5578, 6301, 6365]
     for group in groups:
         skies(group['galaxy'], lines)
-        skies(group['star'], lines, obj=group['star_num'])
+        skies(group['star'], lines)
 
 
 def calibration(groups):
@@ -209,10 +200,10 @@ def calibration(groups):
 ## Program structure ##
 
 def main(command, path):
-    groups = get_groups(path)
     commands = {'init': init, 'slice': slice, 'disp': disp,
                 'sky': sky, 'calibrate': calibration}
     os.chdir(path)
+    groups = get_groups()
     commands[command](groups)
 
 

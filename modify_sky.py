@@ -4,8 +4,8 @@
 import os
 import sys
 import subprocess
-from data import get_data, write_data
 from sky import regenerate_sky
+from data import get_sky_levels, write_sky_levels
 
 # call signature: modify_sky night name number op value
 # example: ./modify_sky.py n3 ngc3169 15 + 0.5
@@ -17,17 +17,16 @@ def modify_sky(path, name, number, op, value):
     os.chdir(path)
     number = int(number)
     value = float(value)
-    data = get_data(name)
-    item = data[number]
-    sky_level = item['sky_level']
+    sky_levels = get_sky_levels(name)
+    sky_level = sky_levels[number]
     if op == '+':
         new_sky_level = sky_level + value
     elif op == '-':
         new_sky_level = sky_level - value
-    item.update({'sky_level': new_sky_level})
-    write_data(name, data)
+    sky_levels[number] = new_sky_level
+    write_sky_levels(name, sky_levels)
     os.mkdir('%s/tmp' % name)
-    regenerate_sky(name, item)
+    regenerate_sky(name, number, new_sky_level)
     subprocess.call(['rm', '-rf', '%s/tmp' % name])
 
 
