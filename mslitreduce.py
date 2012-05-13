@@ -5,7 +5,7 @@ import os
 import subprocess
 from argparse import ArgumentParser
 from iraf_base import apsum, calibrate, ccdproc, combine, dispcor, flatcombine
-from iraf_base import fix_image, hedit, imcopy, rotate, setairmass, zerocombine
+from iraf_base import fixpix, hedit, imcopy, rotate, setairmass, zerocombine
 from iraf_base import list_convert, namefix
 from misc import zerocount
 from sky import combine_sky_spectra, generate_sky, regenerate_sky
@@ -59,7 +59,9 @@ def fix_galaxy(name, mask):
     imcopy('@lists/%s' % name, '%s/' % name)
     with open('lists/%s' % name) as f:
         items = ['%s/%s' % (name, item.strip()) for item in f.readlines()]
-    fix_image(list_convert(items), mask)
+    strlist = list_convert(items)
+    hedit(strlist, 'BPM', mask)
+    fixpix(strlist, 'BPM', verbose='yes')
 
 
 def imcopy_galaxy(name):
@@ -148,10 +150,12 @@ def zero_flats(mask, zeros, flats):
     then applies the bad pixel mask specified."""
     for zero in zeros:
         zerocombine('@lists/%s' % zero, output='%s.fits' % zero)
-        fix_image(zero, mask)
+        hedit(zero, 'BPM', mask)
+        fixpix(zero, 'BPM', verbose='yes')
     for flat in flats:
         flatcombine('@lists/%s' % flat, output='%s.fits' % flat)
-        fix_image(flat, mask)
+        hedit(flat, 'BPM', mask)
+        fixpix(flat, 'BPM', verbose='yes')
 
 
 ## Top level functions ##

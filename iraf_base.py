@@ -189,12 +189,6 @@ def list_convert(pylist):
     return stringlist
 
 
-def fix_image(image, mask):
-    """Apply a bad pixel mask to an image."""
-    hedit(image, 'BPM', mask)
-    fixpix(image, 'BPM', verbose='yes')
-
-
 def set_aperture(infile, section):
     """Create an aperture definition file for apsum to use."""
     # section is [left:right,down:up]
