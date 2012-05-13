@@ -27,9 +27,15 @@ def get_groups():
         return yaml.load(f.read())
 
 
+def get_length(name):
+    fn = 'input/%s-length.yaml' % name
+    with open(fn) as f:
+        return yaml.load(f.read())
+
+
 def get_pixel_data(name):
     """Load the pixel location records from user-created YAML file."""
-    fn = 'input/%s.yaml' % name
+    fn = 'input/%s-pixel.yaml' % name
     with open(fn) as f:
         return yaml.load(f.read())
 
@@ -65,31 +71,37 @@ def read_out_file(name):
 
 
 def write_angles(name, angles):
-    fn = 'input/%s-angles.yaml'
+    fn = 'input/%s-angles.yaml' % name
     with open(fn, 'w') as f:
         f.write(yaml.dump(angles))
 
 
+def write_length(name, length):
+    fn = 'input/%s-length.yaml' % name
+    with open(fn, 'w') as f:
+        f.write(yaml.dump(length))
+
+
 def write_sections(name, sections):
-    fn = 'input/%s-sections.yaml'
+    fn = 'input/%s-sections.yaml' % name
     with open(fn, 'w') as f:
         f.write(yaml.dump(sections))
 
 
 def write_sky_levels(name, levels):
-    fn = 'input/%s-sky.yaml'
+    fn = 'input/%s-sky.yaml' % name
     with open(fn, 'w') as f:
         f.write(yaml.dump(levels))
 
 
 def write_sizes(name, sizes):
-    fn = 'input/%s-sizes.yaml'
+    fn = 'input/%s-sizes.yaml' % name
     with open(fn, 'w') as f:
         f.write(yaml.dump(sizes))
 
 
 def write_types(name, types):
-    fn = 'input/%s-types.yaml'
+    fn = 'input/%s-types.yaml' % name
     with open(fn, 'w') as f:
         f.write(yaml.dump(types))
 
@@ -112,6 +124,7 @@ def init_data(name, use=None):
     write_sections(name, sections)
     write_sizes(name, sizes)
     write_types(name, types)
+    write_length(name, len(sizes))
     if not os.path.isfile('input/%s-sky.yaml'):
         write_sky_levels(name, [None] * len(types))
 

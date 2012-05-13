@@ -4,13 +4,13 @@
 import os
 import subprocess
 from argparse import ArgumentParser
-from iraf import apsum, calibrate, ccdproc, combine, dispcor, flatcombine
-from iraf import fix_image, hedit, imcopy, rotate, setairmass, zerocombine
-from iraf import list_convert, namefix
+from iraf_base import apsum, calibrate, ccdproc, combine, dispcor, flatcombine
+from iraf_base import fix_image, hedit, imcopy, rotate, setairmass, zerocombine
+from iraf_base import list_convert, namefix
 from misc import zerocount
 from sky import combine_sky_spectra, generate_sky, regenerate_sky
 from data import init_data, get_groups, get_sections, get_object_spectra
-from data import get_angles, get_sky_levels, write_sky_levels
+from data import get_angles, get_sky_levels, write_sky_levels, get_length
 
 ## Higher level IRAF wrappers ##
 
@@ -46,8 +46,8 @@ def dispcor_galaxy(name, use=None):
         use = name
     if not os.path.isdir('%s/disp' % name):
         os.mkdir('%s/disp' % name)
-    spectra = get_object_spectra(name)
-    for spectrum in spectra:
+    length = get_length(name)
+    for spectrum in range(length):
         num = zerocount(spectrum)
         hedit('%s/sum/%s.1d' % (name, num), 'REFSPEC1',
             '%s/sum/%sc.1d' % (use, num))

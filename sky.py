@@ -3,7 +3,7 @@ import subprocess
 import pyfits
 import scipy.optimize
 from misc import rms, std, avg, zerocount
-from iraf import sarith, imcopy, scombine, list_convert
+from iraf_base import sarith, imcopy, scombine, list_convert
 from data import get_sizes, get_types
 
 ##########################################
@@ -157,7 +157,7 @@ def combine_sky_spectra(name, use=None, star_num=None):
     sizes = get_sizes(name)
     flist = []
     for spectra in sky_list:
-        scale = sizes[spectra]['size']
+        scale = sizes[spectra]
         num = zerocount(spectra)
         sarith('%s/disp/%s.1d' % (use, num), '/', scale,
             '%s/sky/%s.scaled' % (name, num))
