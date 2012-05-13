@@ -56,6 +56,7 @@ def load_onedspec():
     pyraf.iraf.noao(_doprint=0)
     pyraf.iraf.onedspec(_doprint=0)
 
+
 ## Wrappers around IRAF functions ##
 
 
@@ -170,8 +171,6 @@ def zerocombine(infiles, **kwargs):
     pyraf.iraf.zerocombine.unlearn()
     pyraf.iraf.zerocombine(input=infiles, **kwargs)
 
-
-## Miscelaneous ##
 
 ## Functions to smooth over the interface to IRAF ##
 

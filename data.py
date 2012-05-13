@@ -4,7 +4,11 @@
 """
 data.py - contains functions for working with metadata about the observations
 
-low level: get_pixel_sizes, get_raw_data, read_out_file, write_raw_data
+low level: get, get_groups, get_mslit_data, write
+manipulation functions: get_group, get_object_spectra, get_sky_spectra
+                        init_data
+calculation functions: calculate_angles, calculate_sections,
+                       calculate_pixel_coordinates
 """
 
 import math
@@ -12,132 +16,97 @@ import os.path
 import yaml
 from misc import avg, threshold_round
 
-## Functions for low level reading, parsing, and writing ##
+## Functions for low level reading and writing ##
 
 
-def get_angles(name):
-    fn = 'input/%s-angles.yaml' % name
+def get(name, suffix):
+    """Get the contents of a previously saved metadata file."""
+    fn = 'input/%s-%s.yaml' % (name, suffix)
     with open(fn) as f:
         return yaml.load(f)
 
 
 def get_groups():
+    """Get the contents of the groups file."""
     fn = 'input/groups.yaml'
     with open(fn) as f:
         return yaml.load(f.read())
 
 
-def get_length(name):
-    fn = 'input/%s-length.yaml' % name
-    with open(fn) as f:
-        return yaml.load(f.read())
-
-
-def get_pixel_data(name):
-    """Load the pixel location records from user-created YAML file."""
-    fn = 'input/%s-pixel.yaml' % name
-    with open(fn) as f:
-        return yaml.load(f.read())
-
-
-def get_sections(name):
-    fn = 'input/%s-sections.yaml' % name
-    with open(fn) as f:
-        return yaml.load(f)
-
-
-def get_sky_levels(name):
-    fn = 'input/%s-sky.yaml' % name
-    with open(fn) as f:
-        return yaml.load(f)
-
-
-def get_sizes(name):
-    fn = 'input/%s-sizes.yaml' % name
-    with open(fn) as f:
-        return yaml.load(f)
-
-
-def get_types(name):
-    fn = 'input/%s-types.yaml' % name
-    with open(fn) as f:
-        return yaml.load(f)
-
-
-def read_out_file(name):
+def get_mslit_data(name):
+    """Get the important data from MSLIT's output."""
     fn = 'input/%s.out' % name
     with open(fn) as f:
-        return f.readlines()
+        raw = f.readlines()
+    # 0 is headers, 1 is a blank line, 2+ is data
+    # if a header field begins with a (, it's not really a header field
+    headers = [h for h in raw[0].split() if h[0] != '(']
+    data = []
+    for line in raw[2:]:
+        pairs = dict(zip(headers, line.split()))
+        data.append({'type': pairs['NAME'], 'xlo': pairs['XLO'],
+                     'xhi': pairs['XHI']})
+    return data
 
 
-def write_angles(name, angles):
-    fn = 'input/%s-angles.yaml' % name
+def write(name, suffix, data):
+    """Write some metadata to disk."""
+    fn = 'input/%s-%s.yaml' % (name, suffix)
     with open(fn, 'w') as f:
-        f.write(yaml.dump(angles))
-
-
-def write_length(name, length):
-    fn = 'input/%s-length.yaml' % name
-    with open(fn, 'w') as f:
-        f.write(yaml.dump(length))
-
-
-def write_sections(name, sections):
-    fn = 'input/%s-sections.yaml' % name
-    with open(fn, 'w') as f:
-        f.write(yaml.dump(sections))
-
-
-def write_sky_levels(name, levels):
-    fn = 'input/%s-sky.yaml' % name
-    with open(fn, 'w') as f:
-        f.write(yaml.dump(levels))
-
-
-def write_sizes(name, sizes):
-    fn = 'input/%s-sizes.yaml' % name
-    with open(fn, 'w') as f:
-        f.write(yaml.dump(sizes))
-
-
-def write_types(name, types):
-    fn = 'input/%s-types.yaml' % name
-    with open(fn, 'w') as f:
-        f.write(yaml.dump(types))
+        f.write(yaml.dump(data))
 
 
 ## Functions for basic manipulation ##
 
-
-def init_data(name, use=None):
-    if not use:
-        use = name
-    raw_out = read_out_file(use)
-    data = parse_out_file(raw_out)
-    pixel_data = get_pixel_data(use)
-    real_sizes = [(float(i['xlo']), float(i['xhi'])) for i in data]
-    types = [item['type'] for item in data]
-    coord = get_pixel_coordinates(pixel_data, real_sizes)
-    angles = calculate_angles(coord)
-    sections, sizes = calculate_sections(coord)
-    write_angles(name, angles)
-    write_sections(name, sections)
-    write_sizes(name, sizes)
-    write_types(name, types)
-    write_length(name, len(sizes))
-    if not os.path.isfile('input/%s-sky.yaml'):
-        write_sky_levels(name, [None] * len(types))
-
-
-def get_object_spectra(name):
+def get_group(name):
+    """Return the group data for a given galaxy or star."""
     groups = get_groups()
     for group in groups:
         if name in group.values():
-            if group['star'] == name:
-                return [group['star_num']]
-            else:
-                items = get_types(name)
-                return [i for i, x in enumerate(items) if x == 'HIIREGION']
+            return group
+
+
+def get_object_spectra(name):
+    """Return the indexes of the spectra that contain objects."""
+    group = get_group(name)
+    if name == group['star']:
+        return group['star_num']
+    else:
+        items = get(name, 'types')
+        return [i for i, x in enumerate(items) if x == 'HIIREGION']
+
+
+def get_sky_spectra(name):
+    """Return the indexes of the spectra that contain sky."""
+    group = get_group(name)
+    sky_types = ['NIGHTSKY']
+    items = get(name, 'types')
+    # we can assume that slits marked HIIREGION for calibration star
+    # observations also contain sky, but make sure not to include the star.
+    if name == group['star']:
+        items.pop(group['star_num'])
+        sky_types.append('HIIREGION')
+    sky_list = [i for i, x in enumerate(items) if x in sky_types]
+    return sky_list
+
+
+def init_data(name):
+    """Generate extra data files from name.out and name-pixel.yaml."""
+    group = get_group(name)
+    use = group['galaxy']
+    data = get_mslit_data(name)
+    pixel_data = get(use, 'pixel')
+    real_sizes = [(float(i['xlo']), float(i['xhi'])) for i in data]
+    types = [item['type'] for item in data]
+    coord = calculate_pixel_coordinates(pixel_data, real_sizes)
+    angles = calculate_angles(coord)
+    sections, sizes = calculate_sections(coord)
+    write(name, 'angles', angles)
+    write(name, 'sections', sections)
+    write(name, 'sizes', sizes)
+    write(name, 'types', types)
+    if not os.path.isfile('input/%s-sky.yaml' % name):
+        write(name, 'sky', [None] * len(types))
 
 
 ## Functions for calculations ##
@@ -173,7 +142,7 @@ def calculate_sections(data):
     return sections, size
 
 
-def get_pixel_coordinates(pixel_data, real_sizes):
+def calculate_pixel_coordinates(pixel_data, real_sizes):
     """Covert physical coordinates from MSLIT .out files into pixel
        coordinates."""
     real_start = real_sizes[0][0]
@@ -190,21 +159,3 @@ def get_pixel_coordinates(pixel_data, real_sizes):
             values.append({'start': start, 'end': end})
         coord.update({pixel['column']: values})
     return coord
-
-
-def parse_out_file(raw_out):
-    data = []
-    header = raw_out.pop(0)
-    headers = header.split()
-    for i, item in enumerate(headers[:]):
-        headers.remove(item)
-        if item[0] != '(':
-            headers.insert(i, item.lower())
-    raw_out.pop(0)
-    for i, item in enumerate(raw_out):
-        values = item.split()
-        item_dict = dict(zip(headers, values))
-        item_dict.update({'number': i})
-        item_dict.update({'type': item_dict['name']})
-        data.append(item_dict)
-    return data

@@ -12,10 +12,6 @@ convienience functions: remove_nan, zerocount
 import math
 import numpy
 
-##########################################
-## Some miscellaneous, useful functions ##
-##########################################
-
 ## Some Math ##
 
 
@@ -50,6 +46,19 @@ def std(*args):
 
 
 ## Convenience functions ##
+
+
+def base(location, values, step):
+    """Increase location by step until values[location] stops decreasing.
+       Return this value."""
+    while True:
+        if values[location] >= values[location + step]:
+            location += step
+        else:
+            break
+    return step
+       
+
 
 def remove_nan(*lists):
     """Remove NaNs from one or more lists. If more than one list is given,

@@ -2,21 +2,21 @@
 # encoding: utf-8
 
 import os
-import subprocess
 from argparse import ArgumentParser
 from iraf_base import apsum, calibrate, ccdproc, combine, dispcor, flatcombine
 from iraf_base import fixpix, hedit, imcopy, rotate, setairmass, zerocombine
+from iraf_base import sarith, scombine
 from iraf_base import list_convert, namefix
 from misc import zerocount
-from sky import combine_sky_spectra, generate_sky, regenerate_sky
-from data import init_data, get_groups, get_sections, get_object_spectra
-from data import get_angles, get_sky_levels, write_sky_levels, get_length
+from sky import generate_sky, sky_subtract
+from data import init_data, get_groups, get_object_spectra, get, get_group
+from data import get_sky_spectra, write
 
 ## Higher level IRAF wrappers ##
 
 
 def apsum_galaxy(name):
-    sections = get_sections(name)
+    sections = get(name, 'sections')
     if not os.path.isdir('%s/sum' % name):
         os.mkdir('%s/sum' % name)
     for i, section in enumerate(sections):
@@ -41,13 +41,28 @@ def calibrate_galaxy(name, standard):
             '%s/cal/%s.1d' % (name, num))
 
 
+def combine_sky_spectra(name):
+    group = get_group(name)
+    use = group['galaxy']
+    sky_list = get_sky_spectra(name)
+    sizes = get(name, 'sizes')
+    flist = []
+    for spectra in sky_list:
+        scale = sizes[spectra]
+        num = zerocount(spectra)
+        sarith('%s/disp/%s.1d' % (use, num), '/', scale,
+            '%s/sky/%s.scaled' % (name, num))
+        flist.append('%s/sky/%s.scaled' % (name, num))
+    scombine(list_convert(flist), '%s/sky.1d' % name)
+
+
 def dispcor_galaxy(name, use=None):
     if not use:
         use = name
     if not os.path.isdir('%s/disp' % name):
         os.mkdir('%s/disp' % name)
-    length = get_length(name)
-    for spectrum in range(length):
+    spectra = get_object_spectra(name) + get_sky_spectra(name)
+    for spectrum in spectra:
         num = zerocount(spectrum)
         hedit('%s/sum/%s.1d' % (name, num), 'REFSPEC1',
             '%s/sum/%sc.1d' % (use, num))
@@ -67,7 +82,7 @@ def fix_galaxy(name, mask):
 def imcopy_galaxy(name):
     if not os.path.isdir('%s/slice' % name):
         os.mkdir('%s/slice' % name)
-    sections = get_sections(name)
+    sections = get(name, 'sections')
     for i, section in enumerate(sections):
         num = zerocount(i)
         imcopy('%s/rot/%s%s' % (name, num, section),
@@ -91,7 +106,7 @@ def init_galaxy(name, mask, zero, flat):
 def rotate_galaxy(name, comp):
     if not os.path.isdir('%s/rot' % name):
         os.mkdir('%s/rot' % name)
-    angles = get_angles(name)
+    angles = get(name, 'angles')
     for i, angle in enumerate(angles):
         num = zerocount(i)
         rotate('%s/base' % name, '%s/rot/%s' % (name, num), angle)
@@ -105,12 +120,12 @@ def setairmass_galaxy(name):
         setairmass('%s/sub/%s.1d' % (name, num))
 
 
-def skies(name, lines, use=None):
+def skies(name, lines):
     """Create a combined sky spectra, sky subtracts all object spectra,
     and sets airmass metadata"""
     if not os.path.isdir('%s/sky' % name):
         os.mkdir('%s/sky' % name)
-    combine_sky_spectra(name, use=use)
+    combine_sky_spectra(name)
     if not os.path.isdir('%s/sub' % name):
         os.mkdir('%s/sub' % name)
     sky_subtract_galaxy(name, lines)
@@ -119,22 +134,19 @@ def skies(name, lines, use=None):
 
 def sky_subtract_galaxy(name, lines):
     spectra = get_object_spectra(name)
-    sky_levels = get_sky_levels(name)
-    os.mkdir('%s/tmp' % name)
+    sky_levels = get(name, 'sky')
     for spectrum in spectra:
         sky_level = sky_levels[spectrum]
-        if sky_level:
-            regenerate_sky(name, spectrum, sky_level)
-        else:
-            sky_levels[spectrum] = generate_sky(name, spectrum, lines)
-    write_sky_levels(name, sky_levels)
-    subprocess.call(['rm', '-rf', '%s/tmp' % name])
+        if not sky_level:
+            sky_level = sky_subtract(name, spectrum, sky, lines)
+        generate_sky(name, spectrum, sky_level)
+    write(name, 'sky', sky_levels)
 
 
-def slice_galaxy(name, comp, use=None):
+def slice_galaxy(name, comp):
     """Separates the individuals slices of a galaxy out,
     and creates one dimensional spectra"""
-    init_data(name, use=use)
+    init_data(name)
     rotate_galaxy(name, comp)
     imcopy_galaxy(name)
     apsum_galaxy(name)
@@ -177,10 +189,10 @@ def init(groups):
         init_galaxy(group['star'], group['mask'], group['zero'], group['flat'])
 
 
-def slice(groups):
+def crop(groups):
     for group in groups:
         slice_galaxy(group['galaxy'], group['lamp'])
-        slice_galaxy(group['star'], group['lamp'], use=group['galaxy'])
+        slice_galaxy(group['star'], group['lamp'])
 
 
 def disp(groups):
@@ -204,7 +216,7 @@ def calibration(groups):
 ## Program structure ##
 
 def main(command, path):
-    commands = {'init': init, 'slice': slice, 'disp': disp,
+    commands = {'init': init, 'slice': crop, 'disp': disp,
                 'sky': sky, 'calibrate': calibration}
     os.chdir(path)
     groups = get_groups()

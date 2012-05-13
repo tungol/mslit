@@ -1,29 +1,54 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+"""
+sky.py - contains functions related to sky subtraction
+
+low level FITS functions: find_line_peak, find_lines, get_continuum,
+                          get_peak_cont, get_wavelength_location
+functions for solving: get_std_sky, guess_scaling, try_sky
+high level functions: generate_sky, sky_subtract
+"""
+
 import os
 import subprocess
 import pyfits
 import scipy.optimize
-from misc import rms, std, avg, zerocount
-from iraf_base import sarith, imcopy, scombine, list_convert
-from data import get_sizes, get_types
+from misc import rms, std, avg, zerocount, base
+from iraf_base import sarith
 
-##########################################
-## Functions related to sky subtraction ##
-##########################################
 
 ## Functions for manipulating the fits data at a low level ##
 
 
-def find_line_peak(hdulist, wavelength, search):
-    number = get_wavelength_location(hdulist, wavelength)
-    data = hdulist[0].data
-    search = range(int(number - search), int(number + search))
-    list = [data[i] for i in search]
-    peak = max(list)
-    peak_num = search[list.index(peak)]
+def find_line_peak(data, location, search):
+    """Find the local maximum near a given location. The third option control
+       how far on either side of the expected wavelength location to
+       consider."""
+    search = range(int(location - search), int(location + search))
+    values = [data[i] for i in search]
+    peak_num = search[values.index(max(values))]
     return peak_num
 
 
-def get_continuum(upcont_num, downcont_num, data):
+def find_lines(name, num, lines):
+    """Find the locations of a number of sky lines in a FITS file."""
+    fn = '%s/disp/%s.1d.fits' % (name, num)
+    hdulist = pyfits.open(fn)
+    data = hdulist[0].data
+    header = hdulist[0].header
+    locations = []
+    for line in lines:
+        line_loc = get_wavelength_location(header, line)
+        locations.append(find_line_peak(data, line_loc, 5))
+    return locations
+
+
+def get_continuum(location, data):
+    """Return the root means square of the continuum values around a
+       location."""
+    upcont_num = base(location, data, 1)
+    downcont_num = base(location, data, -1)
     data = data.tolist()
     values = data[upcont_num:(upcont_num + 3)]
     values.extend(data[(downcont_num - 3):downcont_num])
@@ -31,57 +56,55 @@ def get_continuum(upcont_num, downcont_num, data):
 
 
 def get_peak_cont(hdulist, wavelength, search):
+    """Return the maximum value near a given wavelength; also the local
+       continuum level."""
     data = hdulist[0].data
-    peak_num = find_line_peak(hdulist, wavelength, search)
-    peak = data[peak_num]
-    upcont_num = peak_num
-    while True:
-        if data[upcont_num] >= data[upcont_num + 1]:
-            upcont_num += 1
-        else:
-            break
-    downcont_num = peak_num
-    while True:
-        if data[downcont_num] >= data[downcont_num - 1]:
-            downcont_num -= 1
-        else:
-            break
-    cont = get_continuum(upcont_num, downcont_num, data)
+    header = hdulist[0].header
+    wavelength_location = get_wavelength_location(header, wavelength)
+    peak_location = find_line_peak(data, wavelength_location, search)
+    peak = data[peak_location]
+    cont = get_continuum(peak_location, data)
     return peak, cont
 
 
-def get_wavelength_location(hdulist, wavelength):
-    headers = hdulist[0].header
+def get_wavelength_location(headers, wavelength):
+    """Find the location of a given wavelength withing a FITS file."""
     start = headers['CRVAL1']
     step = headers['CDELT1']
-    tmp = wavelength - start
-    number = round(tmp / step)
+    distance = wavelength - start
+    number = round(distance / step)
     return number
+
 
 ## Functions for solving for the proper level of sky subtraction ##
 
 
 def get_std_sky(scale, name, num, lines):
-    scale = float(scale)
-    sky = '%s/sky.1d' % name
-    scaled_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, scale)
-    in_fn = '%s/disp/%s.1d' % (name, num)
-    out_fn = '%s/tmp/%s/%s.1d' % (name, num, scale)
-    sarith(sky, '*', scale, scaled_sky)
-    sarith(in_fn, '-', scaled_sky, out_fn)
-    outfits = pyfits.open('%s.fits' % out_fn)
-    infits = pyfits.open('%s.fits' % in_fn)
-    locations = []
-    for line in lines:
-        locations.append(find_line_peak(infits, line, 5))
+    """Attempt a sky subtraction at a given scaling, and return a metric of
+       how good that scaling is.
+
+       A proper sky subraction should result in a basically smooth continuum
+       left, so this function looks at the standard deviaton of the spectrum
+       around spectral lines known to be atmospheric. These values are
+       averaged and return, lower numbers are better."""
+    try_sky(scale, name, num)
+    locations = find_lines(name, num, lines)
+    fn = '%s/tmp/%s/%s.1d.fits' % (name, num, scale)
+    hdulist_out = pyfits.open(fn)
     deviations = []
     for item in locations:
-        values = outfits[0].data[(item - 50):(item + 50)]
+        values = hdulist_out[0].data[(item - 50):(item + 50)]
         deviations.append(std(*values))
     return avg(*deviations)
 
 
 def guess_scaling(name, spectrum, sky, lines):
+    """Make a guess at an appropriate scaling factor for sky subtraction.
+
+       For each atmospheric spectral line given, find the difference
+       between the peak and the continuum levels in both the sky spectrum
+       and the object spectrum. The ratio of these is the scaling factor.
+       Average the ratios from each line and return this value."""
     name = '%s/disp/%s.1d.fits' % (name, zerocount(spectrum))
     skyname = '%s.fits' % sky
     spectrafits = pyfits.open(name)
@@ -95,71 +118,41 @@ def guess_scaling(name, spectrum, sky, lines):
     return avg(*scalings)
 
 
+def try_sky(scale, name, num):
+    """Preform a sky subtraction at a given scaling, saving the result to a
+       temporary location."""
+    sky = '%s/sky.1d' % name
+    scaled_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, scale)
+    in_fn = '%s/disp/%s.1d' % (name, num)
+    out_fn = '%s/tmp/%s/%s.1d' % (name, num, scale)
+    sarith(sky, '*', scale, scaled_sky)
+    sarith(in_fn, '-', scaled_sky, out_fn)
+
+
 ## Functions wrapping the solvers and providing output ##
 
 
-def generate_sky(name, spectrum, lines):
-    num = zerocount(spectrum)
-    sky = '%s/sky.1d' % name
-    xopt = float(sky_subtract(name, spectrum, sky, lines))
-    tmp_fn = '%s/tmp/%s/%s.1d' % (name, num, xopt)
-    tmp_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, xopt)
-    out_fn = '%s/sub/%s.1d' % (name, num)
-    out_sky = '%s/sky/%s.sky.1d' % (name, num)
-    imcopy(tmp_fn, out_fn)
-    imcopy(tmp_sky, out_sky)
-    return xopt
-
-
-def regenerate_sky(name, spectrum, sky_level):
+def generate_sky(name, spectrum, sky_level):
+    """Use sarith to perform sky subtraction at a given scaling level."""
     num = zerocount(spectrum)
     in_fn = '%s/disp/%s.1d' % (name, num)
     in_sky = '%s/sky.1d' % name
-    tmp_fn = '%s/tmp/%s.1d' % (name, num)
-    tmp_sky = '%s/tmp/%s.sky.1d' % (name, num)
-    sarith(in_sky, '*', sky_level, tmp_sky)
-    sarith(in_fn, '-', tmp_sky, tmp_fn)
     out_fn = '%s/sub/%s.1d' % (name, num)
     out_sky = '%s/sky/%s.sky.1d' % (name, num)
     subprocess.call(['rm', '-f', '%s.fits' % out_fn])
     subprocess.call(['rm', '-f', '%s.fits' % out_sky])
-    imcopy(tmp_sky, out_sky)
-    imcopy(tmp_fn, out_fn)
+    sarith(in_sky, '*', sky_level, out_sky)
+    sarith(in_fn, '-', out_sky, out_fn)
 
 
 def sky_subtract(name, spectrum, sky, lines):
+    """Optimize the get_std_sky function to determine the best level of sky
+       subtraction. Return the value found."""
     num = zerocount(spectrum)
     guess = guess_scaling(name, spectrum, sky, lines)
-    # fmin
+    os.mkdir('%s/tmp' % name)
     os.mkdir('%s/tmp/%s' % (name, num))
     xopt = scipy.optimize.fmin(get_std_sky, guess,
         args=(name, num, lines), xtol=0.001)
+    subprocess.call(['rm', '-rf', '%s/tmp' % name])
     return xopt
-
-
-## Other functions relating to sky subtraction ##
-
-
-def get_sky_list(name, star_num):
-    sky_types = ['NIGHTSKY']
-    items = get_types(name)
-    if star_num:
-        items.pop(star_num)
-        sky_types.append('HIIREGION')
-    sky_list = [i for i, x in enumerate(items) if x in sky_types]
-    return sky_list
-
-
-def combine_sky_spectra(name, use=None, star_num=None):
-    if not use:
-        use = name
-    sky_list = get_sky_list(name, star_num)
-    sizes = get_sizes(name)
-    flist = []
-    for spectra in sky_list:
-        scale = sizes[spectra]
-        num = zerocount(spectra)
-        sarith('%s/disp/%s.1d' % (use, num), '/', scale,
-            '%s/sky/%s.scaled' % (name, num))
-        flist.append('%s/sky/%s.scaled' % (name, num))
-    scombine(list_convert(flist), '%s/sky.1d' % name)
