@@ -14,7 +14,7 @@ calculation functions: calculate_angles, calculate_sections,
 import math
 import os.path
 import yaml
-from misc import avg, threshold_round
+from .misc import avg, threshold_round
 
 ## Functions for low level reading and writing ##
 
@@ -70,7 +70,7 @@ def get_object_spectra(name):
     """Return the indexes of the spectra that contain objects."""
     group = get_group(name)
     if name == group['star']:
-        return group['star_num']
+        return [group['star_num']]
     else:
         items = get(name, 'types')
         return [i for i, x in enumerate(items) if x == 'HIIREGION']
@@ -94,7 +94,7 @@ def init_data(name):
     """Generate extra data files from name.out and name-pixel.yaml."""
     group = get_group(name)
     use = group['galaxy']
-    data = get_mslit_data(name)
+    data = get_mslit_data(use)
     pixel_data = get(use, 'pixel')
     real_sizes = [(float(i['xlo']), float(i['xhi'])) for i in data]
     types = [item['type'] for item in data]

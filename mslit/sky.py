@@ -14,9 +14,12 @@ import os
 import subprocess
 import pyfits
 import scipy.optimize
-from misc import rms, std, avg, zerocount, base
-from iraf_base import sarith
+from .misc import rms, std, avg, zerocount, base
+from .iraf import sarith
 
+
+# define some atmospheric spectral lines
+LINES = [5893, 5578, 6301, 6365]
 
 ## Functions for manipulating the fits data at a low level ##
 
@@ -31,14 +34,14 @@ def find_line_peak(data, location, search):
     return peak_num
 
 
-def find_lines(name, num, lines):
+def find_lines(name, num):
     """Find the locations of a number of sky lines in a FITS file."""
     fn = '%s/disp/%s.1d.fits' % (name, num)
     hdulist = pyfits.open(fn)
     data = hdulist[0].data
     header = hdulist[0].header
     locations = []
-    for line in lines:
+    for line in LINES:
         line_loc = get_wavelength_location(header, line)
         locations.append(find_line_peak(data, line_loc, 5))
     return locations
@@ -79,7 +82,7 @@ def get_wavelength_location(headers, wavelength):
 ## Functions for solving for the proper level of sky subtraction ##
 
 
-def get_std_sky(scale, name, num, lines):
+def get_std_sky(scale, name, num):
     """Attempt a sky subtraction at a given scaling, and return a metric of
        how good that scaling is.
 
@@ -87,8 +90,9 @@ def get_std_sky(scale, name, num, lines):
        left, so this function looks at the standard deviaton of the spectrum
        around spectral lines known to be atmospheric. These values are
        averaged and return, lower numbers are better."""
+    scale = float(scale)
     try_sky(scale, name, num)
-    locations = find_lines(name, num, lines)
+    locations = find_lines(name, num)
     fn = '%s/tmp/%s/%s.1d.fits' % (name, num, scale)
     hdulist_out = pyfits.open(fn)
     deviations = []
@@ -98,19 +102,19 @@ def get_std_sky(scale, name, num, lines):
     return avg(*deviations)
 
 
-def guess_scaling(name, spectrum, sky, lines):
+def guess_scaling(name, spectrum):
     """Make a guess at an appropriate scaling factor for sky subtraction.
 
        For each atmospheric spectral line given, find the difference
        between the peak and the continuum levels in both the sky spectrum
        and the object spectrum. The ratio of these is the scaling factor.
        Average the ratios from each line and return this value."""
-    name = '%s/disp/%s.1d.fits' % (name, zerocount(spectrum))
-    skyname = '%s.fits' % sky
-    spectrafits = pyfits.open(name)
+    spectra = '%s/disp/%s.1d.fits' % (name, zerocount(spectrum))
+    skyname = '%s/sky.1d.fits' % name
+    spectrafits = pyfits.open(spectra)
     skyfits = pyfits.open(skyname)
     scalings = []
-    for line in lines:
+    for line in LINES:
         spec_peak, spec_cont = get_peak_cont(spectrafits, line, 5)
         sky_peak, sky_cont = get_peak_cont(skyfits, line, 5)
         scale = ((spec_peak - spec_cont) / (sky_peak - sky_cont))
@@ -125,8 +129,10 @@ def try_sky(scale, name, num):
     scaled_sky = '%s/tmp/%s/%s.sky.1d' % (name, num, scale)
     in_fn = '%s/disp/%s.1d' % (name, num)
     out_fn = '%s/tmp/%s/%s.1d' % (name, num, scale)
-    sarith(sky, '*', scale, scaled_sky)
-    sarith(in_fn, '-', scaled_sky, out_fn)
+    if not (os.path.isfile('%s.fits' % scaled_sky) or
+            os.path.isfile('%s.fits' % out_fn)):
+        sarith(sky, '*', scale, scaled_sky)
+        sarith(in_fn, '-', scaled_sky, out_fn)
 
 
 ## Functions wrapping the solvers and providing output ##
@@ -145,14 +151,14 @@ def generate_sky(name, spectrum, sky_level):
     sarith(in_fn, '-', out_sky, out_fn)
 
 
-def sky_subtract(name, spectrum, sky, lines):
+def sky_subtract(name, spectrum):
     """Optimize the get_std_sky function to determine the best level of sky
        subtraction. Return the value found."""
     num = zerocount(spectrum)
-    guess = guess_scaling(name, spectrum, sky, lines)
+    guess = guess_scaling(name, spectrum)
     os.mkdir('%s/tmp' % name)
     os.mkdir('%s/tmp/%s' % (name, num))
     xopt = scipy.optimize.fmin(get_std_sky, guess,
-        args=(name, num, lines), xtol=0.001)
+        args=(name, num), xtol=0.001)
     subprocess.call(['rm', '-rf', '%s/tmp' % name])
-    return xopt
+    return float(xopt)
