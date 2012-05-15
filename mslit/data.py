@@ -10,7 +10,7 @@ manipulation functions: get_group, get_object_spectra, get_sky_spectra
 calculation functions: calculate_angles, calculate_sections,
                        calculate_pixel_coordinates
 """
-
+from __future__ import with_statement
 import math
 import os.path
 import yaml

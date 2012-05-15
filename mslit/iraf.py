@@ -18,6 +18,7 @@ All function wrappers can be passed arbitrary key values which will be
 passed on to the corresponding IRAF function.
 """
 
+from __future__ import with_statement
 import pyraf.iraf
 import os
 import os.path

@@ -3,8 +3,8 @@
 
 import os
 from argparse import ArgumentParser
-from data import get, write
-from sky import generate_sky
+from mslit.data import get, write
+from mslit.sky import generate_sky
 
 # call signature: modify_sky night name number op value
 # example: ./modify_sky.py n3 ngc3169 15 + 0.5
