@@ -45,7 +45,8 @@ def get_mslit_data(name):
     for line in raw[2:]:
         pairs = dict(zip(headers, line.split()))
         data.append({'type': pairs['NAME'], 'xlo': pairs['XLO'],
-                     'xhi': pairs['XHI']})
+                     'xhi': pairs['XHI'],
+                     'pos': {'ra': pairs['RA'], 'dec': pairs['DEC']}})
     return data
 
 
@@ -105,6 +106,7 @@ def init_data(name):
     write(name, 'sections', sections)
     write(name, 'sizes', sizes)
     write(name, 'types', types)
+    write(name, 'positions', [item['pos'] for item in data])
     if not os.path.isfile('input/%s-sky.yaml' % name):
         write(name, 'sky', [None] * len(types))
 

@@ -4,19 +4,15 @@
 import os
 import math
 import cmath
-import pylab
 import numpy
-import scipy
+import scipy.optimize
 import coords
-from data import get_data
-from misc import remove_nan, avg, rms, std
-
-GRAPH_NUMBER = 0
-
-
-def get_graph_number():
-    GRAPH_NUMBER += 1
-    return GRAPH_NUMBER
+from mslit.data import get
+from mslit.misc import remove_nan, avg, rms
+from graphs import graph_metalicity, graph_sfr, graph_sfr_metals
+from graphs import compare_basic, compare
+from tables import make_flux_table, make_data_table, make_comparison_table
+from tables import compare_table
 
 
 ## Some Math ##
@@ -38,32 +34,9 @@ def cubic_solve(b0, b1, b2, b3):
     return [solution1, solution2, solution3]
 
 
-def sigfigs_format(x, n):
-    if n < 1:
-        raise ValueError("number of significant digits must be >= 1")
-    string = '%.*e' % (n-1, x)
-    value, exponent = string.split('e')
-    exponent = int(exponent)
-    if exponent == 0:
-        return value
-    else:
-        return '$%s \\times 10^{%s}$' % (value, exponent)
 
 
 ## Convenience functions ##
-
-def average(items, values, test):
-    for item in items[:]:
-        if not test(item):
-            items.remove(item)
-    results = {}
-    for value in values:
-        tmp = [item.__dict__[value] for item in items]
-        remove_nan(tmp)
-        a = avg(*tmp)
-        s = std(*tmp)
-        results.update({value: [a, s]})
-    return results
 
 
 def fit(function, parameters, y, x=None):
@@ -79,7 +52,6 @@ def fit(function, parameters, y, x=None):
         x = numpy.arange(y.shape[0])
     p = [param() for param in parameters]
     return scipy.optimize.leastsq(f, p)
-
 
 
 ## Useful classes ##
@@ -360,7 +332,7 @@ class GalaxyClass:
         self.spectradict.update({num: spectra})
 
     def calculate(self):
-        data = get_data(self.id)
+        data = get(self.id, 'positions')
         center = coords.Position(self.center)
         for spectrum in self.spectra:
             sdata = data[spectrum.number]
@@ -412,8 +384,8 @@ class GalaxyClass:
 
     def output_graphs(self):
         graph_metalicity(self)
-        graph_SFR(self)
-        graph_SFR_metals(self)
+        graph_sfr(self)
+        graph_sfr_metals(self)
 
     def output_tables(self):
         spectra = self.spectra
@@ -429,7 +401,6 @@ class GalaxyClass:
         self.correct_extinction()
         self.calculate()
         self.regions = len(self.spectra)
-
 
 
 ## Functions for reading in tables of data ##
@@ -521,589 +492,14 @@ def parse_keyfile(fn):
     return keys
 
 
-## Make some graphs ##
 
 
-def graph_metalicity(galaxy):
-    graph_number = get_graph_number()
-    spectra = galaxy.spectra
-    OH = [s.OH for s in spectra]
-    r = [s.rdistance for s in spectra]
-    remove_nan(OH, r)
-    OH = numpy.array(OH)
-    r = numpy.array(r)
-    r = r / galaxy.r25
-    pylab.figure(figsize=(5, 5), num=graph_number)
-    pylab.xlabel('$R/R_{25}$')
-    pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
-    #plot the data
-    pylab.plot(r, OH, 'co')
-    #overplot the fitted function
-    t = numpy.arange(0, 2, .1)
-    fit = galaxy.fit[0]
-    fitdata = fit[1] + t * fit[0]
-    pylab.plot(t, fitdata, 'k-')
-    #overplot solar metalicity
-    solardata = 8.69 + t * 0
-    pylab.plot(t, solardata, 'k--')
-    v = (0, 1.5, 8.0, 9.7)
-    pylab.axis(v)
-    # label solar metalicity
-    pylab.text(1.505, 8.665, '$Z_\odot$')
-    pylab.savefig('tables/%s_metals.eps' % galaxy.id, format='eps')
 
 
-def graph_SFR(galaxy):
-    graph_number = get_graph_number()
-    spectra = galaxy.spectra
-    #remove uncorrected values
-    for spectrum in spectra[:]:
-        if spectrum.id[-1] == '*':
-            spectra.remove(spectrum)
-    SFR = [s.SFR for s in spectra]
-    r = [s.rdistance for s in spectra]
-    remove_nan(SFR, r)
-    SFR = numpy.array(SFR)
-    r = numpy.array(r)
-    r = r / galaxy.r25
-    pylab.figure(figsize=(5, 5), num=graph_number)
-    pylab.xlabel('$R/R_{25}$')
-    pylab.ylabel('$SFR (M_\odot/\\textnormal{year})$')
-    #plot the data
-    pylab.plot(r, SFR, 'co')
-    v = pylab.axis()
-    v = (0, 1.5, v[2], v[3])
-    pylab.axis(v)
-    pylab.savefig('tables/%s_sfr.eps' % galaxy.id, format='eps')
-
-
-def graph_SFR_metals(galaxy):
-    graph_number = get_graph_number()
-    pylab.figure(figsize=(5, 5), num=graph_number)
-    pylab.xlabel('SFR(M$_\odot$ / year)')
-    pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
-    spectra = galaxy.spectra
-    #remove uncorrected values
-    for spectrum in spectra[:]:
-        if spectrum.id[-1] == '*':
-            spectra.remove(spectrum)
-    OH = [s.OH for s in spectra]
-    SFR = [s.SFR for s in spectra]
-    remove_nan(OH, SFR)
-    pylab.plot(SFR, OH, 'co')
-    v = pylab.axis()
-    v = (0, v[1], 8.0, 9.7)
-    t = numpy.arange(0, v[1] * 1.5, v[1] * 0.05)
-    #overplot solar metalicity
-    solardata = 8.69 + t * 0
-    pylab.plot(t, solardata, 'k--')
-    pylab.text(v[1] * 1.01, 8.665, '$Z_\odot$')
-    pylab.axis((v[0], v[1], 8.0, 9.7))
-    pylab.savefig('tables/%s_sfr-metal.eps' % galaxy.id, format='eps')
-
-
-def compare_basic(galaxies, other):
-    graph_number = get_graph_number()
-    pylab.figure(figsize=(5, 5), num=graph_number)
-    pylab.xlabel('$R/R_{25}$')
-    pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
-    #overplot solar metalicity
-    t = numpy.arange(0, 2, .1)
-    solardata = 8.69 + t * 0
-    pylab.plot(t, solardata, 'k--')
-    pylab.text(1.505, 8.665, '$Z_\odot$')
-    # plot the other data as black diamonds
-    for galaxy in other:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        pylab.plot(r, OH, 'wd')
-    #plot my galaxies
-    data = []
-    for galaxy in galaxies:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        data.append((r, OH))
-    pylab.plot(data[0][0], data[0][1], 'r^')
-    pylab.plot(data[1][0], data[1][1], 'co')
-    pylab.axis((0, 1.5, 8.0, 9.7))
-    pylab.savefig('tables/basic_comparison.eps', format='eps')
-
-
-def compare_type(galaxies, other):
-    graph_number = get_graph_number()
-    pylab.figure(figsize=(5, 5), num=graph_number)
-    pylab.xlabel('$R/R_{25}$')
-    pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
-    #overplot solar metalicity
-    t = numpy.arange(0, 2, .1)
-    solardata = 8.69 + t * 0
-    pylab.plot(t, solardata, 'k--')
-    pylab.text(1.505, 8.665, '$Z_\odot$')
-    # plot the other data
-    for galaxy in other:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        if galaxy.type in ('Sa', 'Sab'):
-            pylab.plot(r, OH, 'y^')
-        elif galaxy.type in ('Sb', 'Sbc'):
-            pylab.plot(r, OH, 'rd')
-        elif galaxy.type in ('Sc', 'Scd'):
-            pylab.plot(r, OH, 'mp')
-        elif galaxy.type in ('Sd', 'Irr'):
-            pylab.plot(r, OH, 'bD')
-    #plot my galaxies
-    for galaxy in galaxies:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        if galaxy.type in ('Sa', 'Sab'):
-            pylab.plot(r, OH, 'y^')
-        elif galaxy.type in ('Sb', 'Sbc'):
-            pylab.plot(r, OH, 'rd')
-        elif galaxy.type in ('Sc', 'Scd'):
-            pylab.plot(r, OH, 'mp')
-        elif galaxy.type in ('Sd', 'Irr'):
-            pylab.plot(r, OH, 'bD')
-    pylab.axis((0, 1.5, 8.0, 9.7))
-    pylab.savefig('tables/type_comparison.eps', format='eps')
-
-
-def compare_bar(galaxies, other):
-    graph_number = get_graph_number()
-    pylab.figure(figsize=(5, 5), num=graph_number)
-    pylab.xlabel('$R/R_{25}$')
-    pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
-    #overplot solar metalicity
-    t = numpy.arange(0, 2, .1)
-    solardata = 8.69 + t * 0
-    pylab.plot(t, solardata, 'k--')
-    pylab.text(1.505, 8.665, '$Z_\odot$')
-    # plot the other data
-    for galaxy in other:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        if galaxy.bar == 'A':
-            pylab.plot(r, OH, 'y^')
-        elif galaxy.bar == 'AB':
-            pylab.plot(r, OH, 'rd')
-        elif galaxy.bar == 'B':
-            pylab.plot(r, OH, 'mp')
-    #plot my galaxies
-    for galaxy in galaxies:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        if galaxy.bar == 'A':
-            pylab.plot(r, OH, 'y^')
-        elif galaxy.bar == 'AB':
-            pylab.plot(r, OH, 'rd')
-        elif galaxy.bar == 'B':
-            pylab.plot(r, OH, 'mp')
-    pylab.axis((0, 1.5, 8.0, 9.7))
-    pylab.savefig('tables/bar_comparison.eps', format='eps')
-
-
-def compare_ring(galaxies, other):
-    graph_number = get_graph_number()
-    pylab.figure(figsize=(5, 5), num=graph_number)
-    pylab.xlabel('$R/R_{25}$')
-    pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
-    #overplot solar metalicity
-    t = numpy.arange(0, 2, .1)
-    solardata = 8.69 + t * 0
-    pylab.plot(t, solardata, 'k--')
-    pylab.text(1.505, 8.665, '$Z_\odot$')
-    # plot the other data
-    for galaxy in other:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        if galaxy.ring == 's':
-            pylab.plot(r, OH, 'y^')
-        elif galaxy.ring == 'rs':
-            pylab.plot(r, OH, 'rd')
-        elif galaxy.ring == 'r':
-            pylab.plot(r, OH, 'mp')
-    #plot my galaxies
-    for galaxy in galaxies:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        if galaxy.ring == 's':
-            pylab.plot(r, OH, 'y^')
-        elif galaxy.ring == 'rs':
-            pylab.plot(r, OH, 'rd')
-        elif galaxy.ring == 'r':
-            pylab.plot(r, OH, 'mp')
-    pylab.axis((0, 1.5, 8.0, 9.7))
-    pylab.savefig('tables/ring_comparison.eps', format='eps')
-
-
-def compare_env(galaxies, other):
-    graph_number = get_graph_number()
-    pylab.figure(figsize=(5, 5), num=graph_number)
-    pylab.xlabel('$R/R_{25}$')
-    pylab.ylabel('$12 + \log{\\textnormal{O/H}}$')
-    #overplot solar metalicity
-    t = numpy.arange(0, 2, .1)
-    solardata = 8.69 + t * 0
-    pylab.plot(t, solardata, 'k--')
-    pylab.text(1.505, 8.665, '$Z_\odot$')
-    # plot the other data
-    for galaxy in other:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        if galaxy.env == 'isolated':
-            pylab.plot(r, OH, 'y^')
-        elif galaxy.env == 'group':
-            pylab.plot(r, OH, 'rd')
-        elif galaxy.env == 'pair':
-            pylab.plot(r, OH, 'mp')
-    #plot my galaxies
-    for galaxy in galaxies:
-        spectra = galaxy.spectra
-        OH = [s.OH for s in spectra]
-        r = [s.rdistance for s in spectra]
-        remove_nan(OH, r)
-        OH = numpy.array(OH)
-        r = numpy.array(r)
-        r = r / galaxy.r25
-        if galaxy.env == 'isolated':
-            pylab.plot(r, OH, 'y^')
-        elif galaxy.env == 'group':
-            pylab.plot(r, OH, 'rd')
-        elif galaxy.env == 'pair':
-            pylab.plot(r, OH, 'mp')
-    pylab.axis((0, 1.5, 8.0, 9.7))
-    pylab.savefig('tables/env_comparison.eps', format='eps')
-
-
-## Make some tables ##
-
-
-def make_data_table(galaxy):
-    spectra = galaxy.spectra
-    values = ['rdistance', 'OH', 'SFR']
-    string = ''
-    string += '\\begin{tabular}{ *{4}{c}}\n'
-    string += '\\toprule\n'
-    string += ' Number '
-    for item in values:
-        string += '& %s ' % galaxy.lookup[item]
-    string += '\\\\\n'
-    string += '\\midrule\n'
-    for spectrum in spectra:
-        if spectrum.corrected == True:
-            string += ' %s ' % spectrum.printnumber
-        else:
-            string += ' ~%s$^a$' % spectrum.printnumber
-        for item in values:
-            value = spectrum.__dict__[item]
-            if numpy.isnan(value):
-                value = '. . .'
-            else:
-                value = sigfigs_format(value, 2)
-            string += '& %s ' % value
-        string += '\\\\\n'
-    string += '\\bottomrule\n'
-    string += '\\end{tabular}\n'
-    fn = 'tables/%s.tex' % galaxy.id
-    with open(fn, 'w') as f:
-        f.write(string)
-
-
-def make_flux_table(galaxy):
-    spectra = galaxy.spectra
-    lines = galaxy.lines.keys()
-    lines.sort()
-    for item in lines[:]:
-        unused = True
-        for s in spectra:
-            if not numpy.isnan(s.__dict__[item]):
-                unused = False
-                break
-        if unused == True:
-            lines.remove(item)
-    string = ''
-    string += '\\begin{tabular}{ *{%s}{c}}\n' % (len(lines) + 1)
-    string += '\\toprule\n'
-    string += ' Number '
-    for item in lines:
-        string += '& %s ' % galaxy.lookup[item]
-    string += '\\\\\n'
-    string += '\\midrule\n'
-    for spectrum in spectra:
-        if spectrum.corrected == True:
-            string += ' %s ' % spectrum.printnumber
-        else:
-            string += ' ~%s$^a$' % spectrum.printnumber
-        for line in lines:
-            value = spectrum.__dict__[line]
-            if numpy.isnan(value):
-                value = '. . .'
-            else:
-                value = sigfigs_format(value, 2)
-            string += '& %s ' % value
-        string += '\\\\\n'
-    string += '\\bottomrule\n'
-    string += '\\end{tabular}\n'
-    fn = 'tables/%sflux.tex' % galaxy.id
-    with open(fn, 'w') as f:
-        f.write(string)
-
-
-def compare_type_table(galaxies, other):
-    keys = ['grad', 'metal']
-    lookup = {
-        'grad': 'Gradient (dex/R$_{25}$)',
-        'metal': 'Metalicity at 0.4R$_{25}$',
-    }
-    for item in other:
-        galaxies.append(item)
-    group1 = average(galaxies[:], keys, lambda g: g.type in ('Sa', 'Sab'))
-    group2 = average(galaxies[:], keys, lambda g: g.type in ('Sb', 'Sbc'))
-    group3 = average(galaxies[:], keys, lambda g: g.type in ('Sc', 'Scd'))
-    group4 = average(galaxies[:], keys, lambda g: g.type in ('Sd', 'Irr'))
-    string = ''
-    string += 'Hubble Type '
-    for value in keys:
-        string += '& %s & Standard Deviation ' % lookup[value]
-    string += '\\\\\n'
-    string += '\\midrule\n'
-    string += ' Sa and Sab '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group1[value][0], 2)
-        string += '& %s ' % sigfigs_format(group1[value][1], 2)
-    string += '\\\\\n'
-    string += ' Sb and Sbc '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group2[value][0], 2)
-        string += '& %s ' % sigfigs_format(group3[value][1], 2)
-    string += '\\\\\n'
-    string += ' Sc and Scd '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group3[value][0], 2)
-        string += '& %s ' % sigfigs_format(group3[value][1], 2)
-    string += '\\\\\n'
-    string += ' Sd '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group4[value][0], 2)
-        string += '& %s ' % sigfigs_format(group4[value][1], 2)
-    string += '\\\\\n'
-    fn = 'tables/type_comparison.tex'
-    with open(fn, 'w') as f:
-        f.write(string)
-
-
-def compare_bar_table(galaxies, other):
-    keys = ['grad', 'metal']
-    lookup = {
-        'grad': 'Gradient (dex/R$_{25}$)',
-        'metal': 'Metalicity at 0.4R$_{25}$',
-    }
-    for item in other:
-        galaxies.append(item)
-    group1 = average(galaxies[:], keys, lambda g: g.bar == 'A')
-    group2 = average(galaxies[:], keys, lambda g: g.bar == 'AB')
-    group3 = average(galaxies[:], keys, lambda g: g.bar == 'B')
-    string = ''
-    string += ' Bar '
-    for value in keys:
-        string += '& %s & Standard Deviation ' % lookup[value]
-    string += '\\\\\n'
-    string += '\\midrule\n'
-    string += ' No Bar '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group1[value][0], 2)
-        string += '& %s ' % sigfigs_format(group1[value][1], 2)
-    string += '\\\\\n'
-    string += ' Weakly Barred '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group2[value][0], 2)
-        string += '& %s ' % sigfigs_format(group3[value][1], 2)
-    string += '\\\\\n'
-    string += ' Strongly Barred '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group3[value][0], 2)
-        string += '& %s ' % sigfigs_format(group3[value][1], 2)
-    string += '\\\\\n'
-    fn = 'tables/bar_comparison.tex'
-    with open(fn, 'w') as f:
-        f.write(string)
-
-
-def compare_ring_table(galaxies, other):
-    keys = ['grad', 'metal']
-    lookup = {
-        'grad': 'Gradient (dex/R$_{25}$)',
-        'metal': 'Metalicity at 0.4R$_{25}$',
-    }
-    for item in other:
-        galaxies.append(item)
-    group1 = average(galaxies[:], keys, lambda g: g.ring == 's')
-    group2 = average(galaxies[:], keys, lambda g: g.ring == 'rs')
-    group3 = average(galaxies[:], keys, lambda g: g.ring == 'r')
-    string = ''
-    string += ' Ring '
-    for value in keys:
-        string += '& %s & Standard Deviation ' % lookup[value]
-    string += '\\\\\n'
-    string += '\\midrule\n'
-    string += ' S-Shaped '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group1[value][0], 2)
-        string += '& %s ' % sigfigs_format(group1[value][1], 2)
-    string += '\\\\\n'
-    string += ' Intermediate Type '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group2[value][0], 2)
-        string += '& %s ' % sigfigs_format(group3[value][1], 2)
-    string += '\\\\\n'
-    string += ' Ringed '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group3[value][0], 2)
-        string += '& %s ' % sigfigs_format(group3[value][1], 2)
-    string += '\\\\\n'
-    fn = 'tables/ring_comparison.tex'
-    with open(fn, 'w') as f:
-        f.write(string)
-
-
-def compare_env_table(galaxies, other):
-    keys = ['grad', 'metal']
-    lookup = {
-        'grad': 'Gradient (dex/R$_{25}$)',
-        'metal': 'Metalicity at 0.4R$_{25}$',
-    }
-    for item in other:
-        galaxies.append(item)
-    group1 = average(galaxies[:], keys, lambda g: g.env == 'isolated')
-    group2 = average(galaxies[:], keys, lambda g: g.env == 'group')
-    group3 = average(galaxies[:], keys, lambda g: g.env == 'pair')
-    string = ''
-    string += ' Environment '
-    for value in keys:
-        string += '& %s & Standard Deviation ' % lookup[value]
-    string += '\\\\\n'
-    string += '\\midrule\n'
-    string += ' Isolated '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group1[value][0], 2)
-        string += '& %s ' % sigfigs_format(group1[value][1], 2)
-    string += '\\\\\n'
-    string += ' Group '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group2[value][0], 2)
-        string += '& %s ' % sigfigs_format(group3[value][1], 2)
-    string += '\\\\\n'
-    string += ' Pair '
-    for value in keys:
-        string += '& %s ' % sigfigs_format(group3[value][0], 2)
-        string += '& %s ' % sigfigs_format(group3[value][1], 2)
-    string += '\\\\\n'
-    fn = 'tables/env_comparison.tex'
-    with open(fn, 'w') as f:
-        f.write(string)
-
-
-def make_comparison_table(galaxies, other):
-    keys = ['grad', 'metal', 'type', 'bar', 'ring', 'env', 'regions']
-    lookup = {'grad': 'Gradient (dex/R$_{25}$)',
-              'metal': 'Metalicity at 0.4R$_{25}$',
-              'type': 'Hubble Type',
-              'bar': 'Bar',
-              'ring': 'Ring',
-              'env': 'Environment',
-              'regions': 'Number of Regions'}
-    string = ''
-    string += '\\begin{tabular}{ *{%s}{c}}\n' % (len(keys) + 1)
-    string += '\\toprule\n'
-    string += ' Name '
-    for item in keys:
-        string += '& %s ' % lookup[item]
-    string += '\\\\\n'
-    string += '\\midrule\n'
-    for item in galaxies:
-        string += ' %s ' % item.name
-        for key in keys:
-            value = item.__dict__[key]
-            if type(value) == str:
-                string += '& %s ' % value
-            else:
-                if numpy.isnan(value):
-                    value = '. . .'
-                elif key == 'regions':
-                    value = str(value)
-                else:
-                    value = sigfigs_format(value, 3)
-                string += '& %s ' % value
-        string += '\\\\\n'
-    string += '\\midrule\n'
-    for item in other:
-        string += ' %s ' % item.name
-        for key in keys:
-            value = item.__dict__[key]
-            if type(value) == str:
-                string += '& %s ' % value
-            else:
-                if numpy.isnan(value):
-                    value = '. . .'
-                elif key == 'regions':
-                    value = str(value)
-                else:
-                    value = sigfigs_format(value, 3)
-                string += '& %s ' % value
-        string += '\\\\\n'
-    string += '\\bottomrule\n'
-    string += '\\end{tabular}\n'
-    fn = 'tables/comparison.tex'
-    with open(fn, 'w') as f:
-        f.write(string)
 
 
 def main():
-    os.chdir('../n3')
+    os.chdir('../n3fresh')
     ngc3169 = GalaxyClass('ngc3169')
     ngc3169.name = 'NGC 3169'
     ngc3169.redshift = 0.004130
@@ -1138,16 +534,22 @@ def main():
     for galaxy in other_data:
         galaxy.fit_OH()
 
+    groups = {'env': {'Isolated': ('isolated',), 'Group': ('group',),
+                      'Pair': ('pair',)},
+              'ring': {'S-Shaped': ('s',), 'Intermediate Type': ('rs',),
+                       'Ringed': ('r',)},
+              'bar': {'No Bar': ('A',), 'Weakly Barred': ('AB',),
+                      'Strongly Barred': 'B'},
+              'type': {'Sa and Sab': ('Sa', 'Sab'), 'Sb and Sbc': ('Sb', 'Sbc'),
+                       'Sc and Scd': ('Sc', 'Scd'), 'Sd': ('Sd', 'Irr')}}
+    titles = {'env': 'Environment', 'ring': 'Ring', 'bar': 'Bar',
+              'type': 'Hubble Type'}
+
     compare_basic(galaxies, other_data)
-    compare_type(galaxies, other_data)
-    compare_bar(galaxies, other_data)
-    compare_ring(galaxies, other_data)
-    compare_env(galaxies, other_data)
     make_comparison_table(galaxies, other_data)
-    compare_type_table(galaxies, other_data)
-    compare_bar_table(galaxies, other_data)
-    compare_ring_table(galaxies, other_data)
-    compare_env_table(galaxies, other_data)
+    for key, groups in groups.items():
+        compare(galaxies, other_data, groups, key)
+        compare_table(galaxies, other_data, groups, key, titles[key])
 
 
 if __name__ == '__main__':

@@ -34,9 +34,9 @@ def parse_args():
     parser.add_argument('number')
     parser.add_argument('op')
     parser.add_argument('value')
-    return vars(parser.parse_args())
+    args = vars(parser.parse_args())
+    return (args['path'], args['name'], args['number'], args['op'],
+            args['value'])
 
 if __name__ == '__main__':
-    args = parse_args()
-    modify_sky(args['path'], args['name'], args['number'], args['op'],
-               args['value'])
+    modify_sky(*parse_args())

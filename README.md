@@ -1,3 +1,3 @@
-requires: python 2.6 or 2.7
+requires: python 2.5+
 numpy, scipy, pyraf, pyfits, yaml
-argparse (included in 2.7)
+argparse (already included in 2.7)
