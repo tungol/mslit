@@ -229,17 +229,6 @@ class SpectrumClass:
             measurement.update({'name': badness[min(badness.keys())]})
     
 
-
-def fit(x0, y, x):
-    
-    def f(params):
-        return y - (params[1] + params[0] * x)
-    
-    if x is None:
-        x = numpy.arange(y.shape[0])
-    return scipy.optimize.leastsq(f, x0)
-    
-
 def fit_OH(spectra, r25):
     # inital guess: flat and solar metallicity
     slope = 0
@@ -250,8 +239,12 @@ def fit_OH(spectra, r25):
     x = numpy.array(x)
     y = numpy.array(y)
     x = x / r25
-    lsqout = fit([slope, intercept], y, x)
-    return lsqout    
+    
+    def f((slope, intercept)):
+        return y - (intercept + slope * x)
+    
+    return scipy.optimize.leastsq(f, (slope, intercept))
+
 
 class GalaxyClass:
     
