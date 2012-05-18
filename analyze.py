@@ -212,25 +212,39 @@ def fit_OH(spectra, r25):
 
 class SpectrumClass:
     
-    def __init__(self, num):
+    def __init__(self, num, data=None):
         self.id = num
         self.number = int(num)
         self.measurements = []
+        if data:
+            (r, hbeta, OII, OIII, r25, distance) = data
+            r_23 = OII + OIII
+            OII = hbeta * OII
+            OIII = hbeta * OIII
+            r = r25 * r
+            self.measurements.append({'name': 'hbeta', 'flux': hbeta})
+            self.measurements.append({'name': 'OII', 'flux': OII})
+            self.measurements.append({'name': 'OIII1', 'flux': OIII})
+            self.rdistance = r
+            self.r23 = r_23
+            self.distance = distance
+            self.calculate_OH(disambig=False)
+            
     
     def __repr__(self):
         return str(self.printnumber)
     
     def calculate(self, distance, center, ra, dec):
         self.r23 = calculate_r23(self.hbeta, self.OII, self.OIII1, self.OIII2)
-        self.OH = self.calculate_OH(self)
+        self.calculate_OH(self)
         self.rdistance = calculate_radial_distance(ra, dec, center, distance)
         self.SFR = calculate_sfr(distance, self.halpha)
     
     def calculate_OH(self, disambig=True):
         if disambig:
             branch = self.OIII2 / self.OII
-            return calculate_OH(self.r23, branch)
-        return calculate_OH(self.r23)
+            self.OH = calculate_OH(self.r23, branch)
+        self.OH = calculate_OH(self.r23)
     
     def collate_lines(self):
         self.lines = {}
@@ -289,9 +303,8 @@ class GalaxyClass:
         lsqout = fit_OH(self.spectra, self.r25)
         self.fit = lsqout
         self.grad = lsqout[0][0]
-        # not quite sure where this next line comes from anymore
-        # the metallicity is the intercept plus 40% of the slope? Strange.
-        self.metal = lsqout[0][1] + lsqout[0][0] * 0.4
+        # standard metallicity is the metallicity at r = 0.4
+        self.metal = lsqout[0][1] + self.grad * 0.4
     
     def output_graphs(self):
         graph_metalicity(self)
@@ -324,10 +337,9 @@ class GalaxyClass:
 ## Functions for reading in tables of data ##
 
 
-def get_galaxies(fn, keys):
+def process_galaxies(fn, galaxydict):
     with open('../other_data/%s' % fn) as f:
         raw = f.readlines()
-    galaxies = []
     current = None
     number = None
     for line in raw:
@@ -335,79 +347,45 @@ def get_galaxies(fn, keys):
         if line == '':
             pass
         elif line[0] == '*':
-            id = line[1:]
-            name = 'NGC ' + id
-            current = GalaxyClass(id)
-            current.name = name
+            current = galaxydict[line[1:]]
             number = 0
-            galaxies.append(current)
-            current.distance = keys[id]['distance']
-            current.r25 = keys[id]['r_0']
-            current.type = keys[id]['type']
-            current.bar = keys[id]['bar']
-            current.ring = keys[id]['ring']
-            current.env = keys[id]['env']
         else:
-            (r, hbeta, OII, OIII) = line.split('\t')
-            r = float(r)
-            hbeta = float(hbeta)
-            OII = float(OII)
-            OIII = float(OIII)
-            r_23 = OII + OIII
-            OII = hbeta * OII
-            OIII = hbeta * OIII
-            r = current.r25 * r
-            spectrum = SpectrumClass(str(number))
+            # r, hbeta, OII, OIII
+            data = [float(item) for item in line.split('\t')]
+            data += [current.r25, current.distance]
+            spectrum = SpectrumClass(str(number), data)
             current.spectra.append(spectrum)
-            spectrum.measurements.append({'name': 'hbeta', 'flux': hbeta})
-            spectrum.measurements.append({'name': 'OII', 'flux': OII})
-            spectrum.measurements.append({'name': 'OIII1', 'flux': OIII})
-            spectrum.distance = current.distance
-            spectrum.rdistance = r
-            spectrum.r23 = r_23
-            spectrum.OH = spectrum.calculate_OH(disambig=False)
             number += 1
-    return galaxies
 
 
 def get_other():
-    files = os.listdir('../other_data/')
+    files = os.listdir('other_data/')
+    files = [fn for fn in files if fn[-4:] == '.txt']
+    galaxydict = parse_keyfile()
     for fn in files:
-        if fn[-4:] != '.txt':
-            files.remove(fn)
-    keyfile = files.pop(0)
-    keys = parse_keyfile(keyfile)
-    others = []
-    for item in files:
-        galaxies = get_galaxies(item, keys)
-        for galaxy in galaxies:
-            others.append(galaxy)
-    for galaxy in others:
+        process_galaxies(fn, galaxydict)
+    for galaxy in galaxydict.values():
         galaxy.regions = len(galaxy.spectra)
-    return others
+    return galaxydict.values()
 
 
-def parse_keyfile(fn):
-    with open('../other_data/%s' % fn) as f:
+def parse_keyfile():
+    with open('../other_data/key.txt') as f:
         raw = f.readlines()
-    keys = {}
+    galaxydict = {}
     for line in raw:
-        if line[0:3] == 'ngc':
-            pass
-        else:
+        if line != 'ngc	D (mpc)	r_0	type	bar	ring	env': # header
             line = line.strip()
             (ngc, distance, r_0, htype, bar, ring, env) = line.split('\t')
             # convert distance to kpc from Mpc for consistency
             distance = float(distance) * 1000
             # convert r_0 from arcminutes to kpc
             r_0 = distance * math.tan(math.radians(float(r_0) * 60))
-            keys.update({ngc: {'distance': distance,
-                               'r_0': r_0,
-                               'type': htype,
-                               'bar': bar,
-                               'ring': ring,
-                               'env': env}})
-    return keys
+            data = {'distance': distance, 'r25': r_0, 'type': htype,
+                    'bar': bar, 'ring': ring, 'env': env,
+                    'name': 'NGC %s' % ngc}
+            galaxydict.update({ngc, GalaxyClass[ngc, data]})
+    return galaxydict
 
 
 def main(path):
@@ -425,8 +403,6 @@ def main(path):
         galaxy.output_graphs()
     for galaxy in other_data:
         galaxy.fit_OH()
-    
-    
     compare_basic(galaxies, other_data)
     make_comparison_table(galaxies, other_data)
     make_group_comparison_table(galaxies, other_data, GROUPS)
