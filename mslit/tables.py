@@ -1,6 +1,6 @@
 import numpy
-from mslit.misc import remove_nan, avg, std
-
+from .misc import remove_nan, avg, std
+from .const import GROUPS
 
 def sigfigs_format(x, n):
     if numpy.isnan(x):
@@ -130,7 +130,7 @@ def make_comparison_table(galaxies, other):
         f.write(''.join(string))
 
 
-def make_group_comparison_table(galaxies, other, classes):
+def make_group_comparison_table(galaxies, other):
     galaxies += other
     lookup = {'grad': 'Gradient (dex/R$_{25}$)',
               'grad_std': 'Standard Deviation',
@@ -138,8 +138,7 @@ def make_group_comparison_table(galaxies, other, classes):
               'metal_std': 'Standard Deviation'}
     titles = {'env': 'Environment', 'ring': 'Ring', 'bar': 'Bar',
               'type': 'Hubble Type'}
-
-    string = make_tabular(galaxies, lookup, (classes, titles), arrange_group,
+    string = make_tabular(galaxies, lookup, (GROUPS, titles), arrange_group,
                            make_multitable)
     with open('tables/comparison2.tex', 'w') as f:
         f.write(''.join(string))

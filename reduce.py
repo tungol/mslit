@@ -6,6 +6,7 @@ import argparse
 from mslit.iraf import zero_flats, init_galaxy, slice_galaxy, dispcor_galaxy
 from mslit.iraf import calibrate_galaxy, skies
 from mslit.data import get_groups
+from mslit.analyze import analyze
 
 
 def main(command, path, name):
@@ -15,6 +16,8 @@ def main(command, path, name):
     os.chdir(path)
     if command == 'zeroflat':
         zero_flats()
+    if command == 'analyze':
+        analyze()
     elif name == 'all':
         groups = get_groups()
         for group in groups:
@@ -39,10 +42,11 @@ init: initialize a galaxy or star
 extract: extract one dimensional spectra from a galaxy or star
 disp: apply dispersion correction to a galaxy or star
 sky: perform sky subtraction for a galaxy or star
-calibrate: flux calibrate a galaxy""")
+calibrate: flux calibrate a galaxy
+analyze: produce graphs and tables of measured data""")
     parser.add_argument('command', help="command to run",
                         choices=['zeroflat', 'init', 'extract', 'disp', 'sky',
-                                 'calibrate'])
+                                 'calibrate', 'analyze'])
     parser.add_argument('path', help="path to the set of files")
     parser.add_argument('--name', default="all",
                         help="name of the galaxy or star to act on (default: "

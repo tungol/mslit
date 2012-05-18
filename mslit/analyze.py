@@ -1,45 +1,20 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import argparse
+from __future__ import with_statement
 import os
 import math
 import cmath
 import numpy
 import scipy.optimize
 import coords
-from mslit.data import get, get_groups
-from mslit.misc import remove_nan, avg
-from graphs import graph_metalicity, graph_sfr, graph_sfr_metals
-from graphs import compare_basic, compare
-from tables import make_flux_table, make_data_table, make_comparison_table
-from tables import make_group_comparison_table
-
-
-LINES = {'OII': 3727, 'hgamma': 4341, 'hbeta': 4861, 'OIII1': 4959,
-         'OIII2': 5007, 'NII1': 6548, 'halpha': 6563, 'NII2': 6583,
-         'SII1': 6717, 'SII2': 6731, 'OIII3': 4363}
-
-LOOKUP = {'OII': '[O II]$\lambda3727$', 'hgamma': 'H$\gamma$',
-          'hbeta': 'H$\\beta$', 'OIII1': '[O III]$\lambda4959$',
-          'OIII2': '[O III]$\lambda5007$', 'NII1': '[N II]$\lambda6548$',
-          'halpha': 'H$\\alpha$', 'NII2': '[N II]$\lambda6583$',
-          'SII1': '[S II]$\lambda6717$', 'SII2': '[S II]$\lambda6731$',
-          'OIII3': '[O III]$\lambda4363$',
-          'OH': '$12 + \log{\\textnormal{O/H}}$',
-          'SFR': 'SFR(M$_\odot$ / year)', 'rdistance': 'Radial Distance (kpc)',
-          'extinction': 'E(B - V)', 'r23': '$R_{23}$'}
-
-GROUPS = {'env': {'Isolated': ('isolated',), 'Group': ('group',),
-                  'Pair': ('pair',)},
-          'ring': {'S-Shaped': ('s',), 'Intermediate Type': ('rs',),
-                   'Ringed': ('r',)},
-          'bar': {'No Bar': ('A',), 'Weakly Barred': ('AB',),
-                  'Strongly Barred': 'B'},
-          'type': {'Sa and Sab': ('Sa', 'Sab'),
-                   'Sb and Sbc': ('Sb', 'Sbc'),
-                   'Sc and Scd': ('Sc', 'Scd'), 'Sd': ('Sd', 'Irr')}}
-
+from .data import get, get_groups
+from .misc import remove_nan, avg
+from .graphs import graph_metalicity, graph_sfr, graph_sfr_metals
+from .graphs import compare_basic, compare
+from .tables import make_flux_table, make_data_table, make_comparison_table
+from .tables import make_group_comparison_table
+from .const import LINES, GROUPS, LOOKUP
 
 
 ## Some Math ##
@@ -399,8 +374,7 @@ def parse_keyfile():
     return galaxydict
 
 
-def main(path):
-    os.chdir(path)
+def analyze():
     groups = get_groups()
     galaxies = []
     for group in groups:
@@ -416,17 +390,6 @@ def main(path):
         galaxy.fit_OH()
     compare_basic(galaxies, other_data)
     make_comparison_table(galaxies, other_data)
-    make_group_comparison_table(galaxies, other_data, GROUPS)
+    make_group_comparison_table(galaxies, other_data)
     for key, group in GROUPS.items():
         compare(galaxies, other_data, group, key)
-
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('path')
-    args = vars(parser.parse_args())
-    return args['path']
-
-
-if __name__ == '__main__':
-    main(parse_args())

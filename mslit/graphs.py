@@ -1,7 +1,7 @@
 import matplotlib
 from matplotlib.backends.backend_ps import FigureCanvasPS as FigureCanvas
 import numpy
-from mslit.misc import remove_nan
+from .misc import remove_nan
 
 
 matplotlib.rc('text', usetex=True)
