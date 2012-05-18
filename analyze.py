@@ -130,9 +130,9 @@ def calculate_OH(r23, branch=None):
         return solutions[2]
 
 
-def calculate_r23(hbeta, OII, OIII1, OIII2):
-    r2 = OII / hbeta
-    r3 = (OIII1 + OIII2) / hbeta
+def calculate_r23(fluxes):
+    r2 = fluxes['OII'] / fluxes['hbeta']
+    r3 = (fluxes['OIII1'] + fluxes['OIII2']) / fluxes['hbeta']
     r23 = r2 + r3
     return r23
 
@@ -213,9 +213,15 @@ def fit_OH(spectra, r25):
 class SpectrumClass:
     
     def __init__(self, num, data=None):
-        self.id = num
+        self.num = num
         self.number = int(num)
         self.measurements = []
+        self.fluxes = {}
+        self.printnumber = None # table order
+        self.OH = None
+        self.lines = None
+        self.SFR = None
+        self.corrected = None
         if data:
             (r, hbeta, OII, OIII, r25, distance) = data
             r_23 = OII + OIII
@@ -235,14 +241,14 @@ class SpectrumClass:
         return str(self.printnumber)
     
     def calculate(self, distance, center, ra, dec):
-        self.r23 = calculate_r23(self.hbeta, self.OII, self.OIII1, self.OIII2)
+        self.r23 = calculate_r23(self.fluxes)
         self.calculate_OH(self)
         self.rdistance = calculate_radial_distance(ra, dec, center, distance)
-        self.SFR = calculate_sfr(distance, self.halpha)
+        self.SFR = calculate_sfr(distance, self.fluxes['halpha'])
     
     def calculate_OH(self, disambig=True):
         if disambig:
-            branch = self.OIII2 / self.OII
+            branch = self.fluxes['OIII2'] / self.fluxes['OII']
             self.OH = calculate_OH(self.r23, branch)
         self.OH = calculate_OH(self.r23)
     
@@ -254,13 +260,13 @@ class SpectrumClass:
             sources = [m for m in self.measurements if m['name'] == name]
             flux = avg(*[s['flux'] for s in sources])
             self.lines[name].update({'flux': flux})
-            self.__dict__[name] = flux
+            self.fluxes[name] = flux
     
     def correct_extinction(self):
-        R_obv = self.halpha / self.hbeta
+        R_obv = self.fluxes['halpha'] / self.fluxes['hbeta']
         if numpy.isnan(R_obv):
             self.corrected = False
-            self.id = self.id + '*'
+            self.num = self.num + '*'
         else:
             values = correct_extinction(R_obv, self.lines.values())
             for name, flux in values:
@@ -277,8 +283,12 @@ class SpectrumClass:
 class GalaxyClass:
     
     def __init__(self, name, data=None):
-        self.id = name
+        self.num = name
         self.spectra = []
+        self.fit = None
+        self.grad = None
+        self.metal = None
+        self.regions = None
         if data:
             self.name = data['name']
             self.distance = data['distance'] # in kpc
@@ -293,13 +303,13 @@ class GalaxyClass:
                 self.center = data['center']
     
     def add_logs(self):
-        fns = os.listdir('%s/measurements/' % self.id)
+        fns = os.listdir('%s/measurements/' % self.num)
         spectradict = {}
         for fn in fns:
             if fn[-4:] == '.log':
-                spectradict.update(parse_log(self.id, fn, spectradict))
+                spectradict.update(parse_log(self.num, fn, spectradict))
         self.spectra = spectradict.values()
-        self.spectra.sort(key=lambda x: x.id)
+        self.spectra.sort(key=lambda x: x.num)
     
     def fit_OH(self):
         lsqout = fit_OH(self.spectra, self.r25)
@@ -325,7 +335,7 @@ class GalaxyClass:
         lines = LINES.copy()
         for item in lines:
             lines.update({item: (lines[item] * (self.redshift + 1))})
-        data = get(self.id, 'positions')
+        data = get(self.num, 'positions')
         self.regions = len(self.spectra)
         for spectrum in self.spectra:
             spectrum.id_lines(lines)
