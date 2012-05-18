@@ -281,14 +281,16 @@ class GalaxyClass:
         self.spectra = []
         if data:
             self.name = data['name']
-            self.redshift = data['redshift']
-            self.center = data['center']
             self.distance = data['distance'] # in kpc
             self.r25 = data['r25'] # in kpc
             self.type = data['type']
             self.bar = data['bar']
             self.ring = data['ring']
             self.env = data['env']
+            if 'redshift' in data:
+                self.redshift = data['redshift']
+            if 'center' in data:
+                self.center = data['center']
     
     def add_logs(self):
         fns = os.listdir('%s/measurements/' % self.id)
@@ -338,7 +340,7 @@ class GalaxyClass:
 
 
 def process_galaxies(fn, galaxydict):
-    with open('../other_data/%s' % fn) as f:
+    with open('other_data/%s' % fn) as f:
         raw = f.readlines()
     current = None
     number = None
@@ -360,7 +362,7 @@ def process_galaxies(fn, galaxydict):
 
 def get_other():
     files = os.listdir('other_data/')
-    files = [fn for fn in files if fn[-4:] == '.txt']
+    files = [fn for fn in files if fn.startswith('table')]
     galaxydict = parse_keyfile()
     for fn in files:
         process_galaxies(fn, galaxydict)
@@ -370,12 +372,12 @@ def get_other():
 
 
 def parse_keyfile():
-    with open('../other_data/key.txt') as f:
+    with open('other_data/key.txt') as f:
         raw = f.readlines()
     galaxydict = {}
     for line in raw:
+        line = line.strip()
         if line != 'ngc	D (mpc)	r_0	type	bar	ring	env': # header
-            line = line.strip()
             (ngc, distance, r_0, htype, bar, ring, env) = line.split('\t')
             # convert distance to kpc from Mpc for consistency
             distance = float(distance) * 1000
@@ -384,7 +386,7 @@ def parse_keyfile():
             data = {'distance': distance, 'r25': r_0, 'type': htype,
                     'bar': bar, 'ring': ring, 'env': env,
                     'name': 'NGC %s' % ngc}
-            galaxydict.update({ngc, GalaxyClass[ngc, data]})
+            galaxydict.update({ngc: GalaxyClass(ngc, data)})
     return galaxydict
 
 
