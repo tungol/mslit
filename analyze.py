@@ -182,12 +182,32 @@ def parse_log(name, fn, spectradict):
     return spectradict
 
 
+def fit_OH(spectra, r25):
+    # inital guess: flat and solar metallicity
+    slope = 0
+    intercept = 8.6
+    x = [s.rdistance for s in spectra]
+    y = [s.OH for s in spectra]
+    remove_nan(x, y)
+    x = numpy.array(x)
+    y = numpy.array(y)
+    x = x / r25
+    
+    def f((slope, intercept)):
+        return y - (intercept + slope * x)
+    
+    return scipy.optimize.leastsq(f, (slope, intercept))
+
+
 class SpectrumClass:
     
     def __init__(self, num):
         self.id = num
         self.number = int(num)
         self.measurements = []
+    
+    def __repr__(self):
+        return str(self.printnumber)
     
     def calculate(self, distance, center, ra, dec):
         self.r23 = calculate_r23(self.hbeta, self.OII, self.OIII1, self.OIII2)
@@ -229,23 +249,6 @@ class SpectrumClass:
             measurement.update({'name': badness[min(badness.keys())]})
     
 
-def fit_OH(spectra, r25):
-    # inital guess: flat and solar metallicity
-    slope = 0
-    intercept = 8.6
-    x = [s.rdistance for s in spectra]
-    y = [s.OH for s in spectra]
-    remove_nan(x, y)
-    x = numpy.array(x)
-    y = numpy.array(y)
-    x = x / r25
-    
-    def f((slope, intercept)):
-        return y - (intercept + slope * x)
-    
-    return scipy.optimize.leastsq(f, (slope, intercept))
-
-
 class GalaxyClass:
     
     def __init__(self, name):
@@ -259,11 +262,14 @@ class GalaxyClass:
             if fn[-4:] == '.log':
                 spectradict.update(parse_log(self.id, fn, spectradict))
         self.spectra = spectradict.values()
+        self.spectra.sort(key=lambda x: x.id)
     
     def fit_OH(self):
         lsqout = fit_OH(self.spectra, self.r25)
         self.fit = lsqout
         self.grad = lsqout[0][0]
+        # not quite sure where this next line comes from anymore
+        # the metallicity is the intercept plus 40% of the slope? Strange.
         self.metal = lsqout[0][1] + lsqout[0][0] * 0.4
     
     def output_graphs(self):
