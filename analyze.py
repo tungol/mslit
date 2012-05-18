@@ -177,15 +177,6 @@ class SpectrumClass:
         self.number = int(num)
         self.measurements = []
     
-    def add_measurement(self, line):
-        """ add a measurement from splot log files """
-        self.measurements.append({'flux': parse_line(line, 2),
-                                  'center': parse_line(line, 0)})
-    
-    def add_measurement2(self, name, flux):
-        """ add a measurement with known name and flux """
-        self.measurements.append({'flux': flux, 'name': name})
-    
     def calculate(self, distance, center, ra, dec):
         self.r23 = calculate_r23(self.hbeta, self.OII, self.OIII1, self.OIII2)
         self.OH = self.calculate_OH(self)
@@ -226,7 +217,6 @@ class SpectrumClass:
             measurement.update({'name': badness[min(badness.keys())]})
     
 
-
 def is_spectra_head(line):
     if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'):
@@ -261,7 +251,8 @@ def parse_log(name, fn, spectradict):
                 current = SpectrumClass(num)
                 spectradict.update({num: current})
         elif line.strip() != '' and not is_labels(line):
-            current.add_measurement(line)
+            current.measurements.append({'flux': parse_line(line, 2),
+                                         'center': parse_line(line, 0)})
     return spectradict
 
 
@@ -365,9 +356,9 @@ def get_galaxies(fn, keys):
             r = current.r25 * r
             spectrum = SpectrumClass(str(number))
             current.spectra.append(spectrum)
-            spectrum.add_measurement2('hbeta', hbeta)
-            spectrum.add_measurement2('OII', OII)
-            spectrum.add_measurement2('OIII1', OIII)
+            spectrum.measurements.append({'name': 'hbeta', 'flux': hbeta})
+            spectrum.measurements.append({'name': 'OII', 'flux': OII})
+            spectrum.measurements.append({'name': 'OIII1', 'flux': OIII})
             spectrum.distance = current.distance
             spectrum.rdistance = r
             spectrum.r23 = r_23
