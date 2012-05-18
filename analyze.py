@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
+import argparse
 import os
 import math
 import cmath
 import numpy
 import scipy.optimize
 import coords
-from mslit.data import get
+from mslit.data import get, get_groups
 from mslit.misc import remove_nan, avg
 from graphs import graph_metalicity, graph_sfr, graph_sfr_metals
 from graphs import compare_basic, compare
@@ -28,6 +29,17 @@ LOOKUP = {'OII': '[O II]$\lambda3727$', 'hgamma': 'H$\gamma$',
           'OH': '$12 + \log{\\textnormal{O/H}}$',
           'SFR': 'SFR(M$_\odot$ / year)', 'rdistance': 'Radial Distance (kpc)',
           'extinction': 'E(B - V)', 'r23': '$R_{23}$'}
+
+GROUPS = {'env': {'Isolated': ('isolated',), 'Group': ('group',),
+                  'Pair': ('pair',)},
+          'ring': {'S-Shaped': ('s',), 'Intermediate Type': ('rs',),
+                   'Ringed': ('r',)},
+          'bar': {'No Bar': ('A',), 'Weakly Barred': ('AB',),
+                  'Strongly Barred': 'B'},
+          'type': {'Sa and Sab': ('Sa', 'Sab'),
+                   'Sb and Sbc': ('Sb', 'Sbc'),
+                   'Sc and Scd': ('Sc', 'Scd'), 'Sd': ('Sd', 'Irr')}}
+
 
 
 ## Some Math ##
@@ -55,9 +67,6 @@ def cubic_solve(b0, b1, b2, b3):
 
 
 ## Convenience functions ##
-
-
-## Useful classes ##
 
 
 def parse_line(line, num):
@@ -199,6 +208,8 @@ def fit_OH(spectra, r25):
     return scipy.optimize.leastsq(f, (slope, intercept))
 
 
+## Useful classes ##
+
 class SpectrumClass:
     
     def __init__(self, num):
@@ -251,9 +262,19 @@ class SpectrumClass:
 
 class GalaxyClass:
     
-    def __init__(self, name):
+    def __init__(self, name, data=None):
         self.id = name
         self.spectra = []
+        if data:
+            self.name = data['name']
+            self.redshift = data['redshift']
+            self.center = data['center']
+            self.distance = data['distance'] # in kpc
+            self.r25 = data['r25'] # in kpc
+            self.type = data['type']
+            self.bar = data['bar']
+            self.ring = data['ring']
+            self.env = data['env']
     
     def add_logs(self):
         fns = os.listdir('%s/measurements/' % self.id)
@@ -389,58 +410,36 @@ def parse_keyfile(fn):
     return keys
 
 
-def main():
-    os.chdir('../n3fresh')
-    ngc3169 = GalaxyClass('ngc3169')
-    ngc3169.name = 'NGC 3169'
-    ngc3169.redshift = 0.004130
-    ngc3169.center = '10:14:15.0 +03:27:58'
-    ngc3169.distance = 20100 #kpc
-    ngc3169.r25 = 11.57 #kpc
-    ngc3169.type = 'Sa'
-    ngc3169.bar = 'A'
-    ngc3169.ring = 's'
-    ngc3169.env = 'pair'
-    
-    ngc4725 = GalaxyClass('ngc4725')
-    ngc4725.name = 'NGC 4725'
-    ngc4725.redshift = 0.004023
-    ngc4725.center = '12:50:26.6 +25:30:03'
-    ngc4725.distance = 13918 #kpc
-    ngc4725.r25 = 26.23 #kpc
-    ngc4725.type = 'Sab'
-    ngc4725.bar = 'AB'
-    ngc4725.ring = 'r'
-    ngc4725.env = 'pair'
-    
-    galaxies = [ngc3169, ngc4725]
+def main(path):
+    os.chdir(path)
+    groups = get_groups()
+    galaxies = []
+    for group in groups:
+        data = get(group['galaxy'], 'key')
+        galaxies.append(GalaxyClass(group['galaxy'], data))
     other_data = get_other()
-    
     for galaxy in galaxies:
         galaxy.run()
         galaxy.fit_OH()
         galaxy.output_tables()
         galaxy.output_graphs()
-    
     for galaxy in other_data:
         galaxy.fit_OH()
     
-    groups = {'env': {'Isolated': ('isolated',), 'Group': ('group',),
-                      'Pair': ('pair',)},
-              'ring': {'S-Shaped': ('s',), 'Intermediate Type': ('rs',),
-                       'Ringed': ('r',)},
-              'bar': {'No Bar': ('A',), 'Weakly Barred': ('AB',),
-                      'Strongly Barred': 'B'},
-              'type': {'Sa and Sab': ('Sa', 'Sab'),
-                       'Sb and Sbc': ('Sb', 'Sbc'),
-                       'Sc and Scd': ('Sc', 'Scd'), 'Sd': ('Sd', 'Irr')}}
     
     compare_basic(galaxies, other_data)
     make_comparison_table(galaxies, other_data)
-    make_group_comparison_table(galaxies, other_data, groups)
-    for key, groups in groups.items():
-        compare(galaxies, other_data, groups, key)
+    make_group_comparison_table(galaxies, other_data, GROUPS)
+    for key, group in GROUPS.items():
+        compare(galaxies, other_data, group, key)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('path')
+    args = vars(parser.parse_args())
+    return args['path']
 
 
 if __name__ == '__main__':
-    main()
+    main(parse_args())
