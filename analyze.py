@@ -57,21 +57,6 @@ def cubic_solve(b0, b1, b2, b3):
 ## Convenience functions ##
 
 
-def fit(function, parameters, y, x=None):
-    
-    def f(params):
-        i = 0
-        for p in parameters:
-            p.set(params[i])
-            i += 1
-        return y - function(x)
-    
-    if x is None:
-        x = numpy.arange(y.shape[0])
-    p = [param() for param in parameters]
-    return scipy.optimize.leastsq(f, p)
-
-
 ## Useful classes ##
 
 
@@ -158,6 +143,45 @@ def calculate_sfr(distance, halpha_flux):
     return luminosity * 7.9 * (10 ** -42)
 
 
+def is_spectra_head(line):
+    if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'):
+        return True
+    else:
+        return False
+
+
+def is_labels(line):
+    labelstr = ("    center      cont      flux       eqw      core     gfwhm"
+                "     lfwhm\n")
+    if line == labelstr:
+        return True
+    return False
+
+
+def get_num(line):
+    start = line.find('[') + 1
+    return line[start:start + 3]
+
+
+def parse_log(name, fn, spectradict):
+    with open('%s/measurements/%s' % (name, fn)) as f:
+        raw = f.readlines()
+    current = None
+    for line in raw:
+        if is_spectra_head(line):
+            num = get_num(line)
+            if num in spectradict:
+                current = spectradict[num]
+            else:
+                current = SpectrumClass(num)
+                spectradict.update({num: current})
+        elif line.strip() != '' and not is_labels(line):
+            current.measurements.append({'flux': parse_line(line, 2),
+                                         'center': parse_line(line, 0)})
+    return spectradict
+
+
 class ParameterClass:
     
     def __init__(self, value):
@@ -217,44 +241,38 @@ class SpectrumClass:
             measurement.update({'name': badness[min(badness.keys())]})
     
 
-def is_spectra_head(line):
-    if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'):
-        return True
-    else:
-        return False
 
+def fit(function, parameters, y, x):
+    
+    def f(params):
+        i = 0
+        for p in parameters:
+            p.set(params[i])
+            i += 1
+        return y - function(x)
+    
+    if x is None:
+        x = numpy.arange(y.shape[0])
+    p = [param() for param in parameters]
+    return scipy.optimize.leastsq(f, p)
+    
 
-def is_labels(line):
-    labelstr = ("    center      cont      flux       eqw      core     gfwhm"
-                "     lfwhm\n")
-    if line == labelstr:
-        return True
-    return False
-
-
-def get_num(line):
-    start = line.find('[') + 1
-    return line[start:start + 3]
-
-
-def parse_log(name, fn, spectradict):
-    with open('%s/measurements/%s' % (name, fn)) as f:
-        raw = f.readlines()
-    current = None
-    for line in raw:
-        if is_spectra_head(line):
-            num = get_num(line)
-            if num in spectradict:
-                current = spectradict[num]
-            else:
-                current = SpectrumClass(num)
-                spectradict.update({num: current})
-        elif line.strip() != '' and not is_labels(line):
-            current.measurements.append({'flux': parse_line(line, 2),
-                                         'center': parse_line(line, 0)})
-    return spectradict
-
+def fit_OH(spectra, r25):
+    # inital guess: flat and solar metallicity
+    slope = ParameterClass(0)
+    intercept = ParameterClass(8.6)
+    
+    def function(x):
+        return (intercept() + slope() * x)
+    
+    x = [s.rdistance for s in spectra]
+    y = [s.OH for s in spectra]
+    remove_nan(x, y)
+    x = numpy.array(x)
+    y = numpy.array(y)
+    x = x / r25
+    lsqout = fit(function, [slope, intercept], y, x)
+    return lsqout    
 
 class GalaxyClass:
     
@@ -271,24 +289,10 @@ class GalaxyClass:
         self.spectra = spectradict.values()
     
     def fit_OH(self):
-        # inital guess: flat and solar metallicity
-        slope = ParameterClass(0)
-        intercept = ParameterClass(8.6)
-        
-        def function(x):
-            return (intercept() + slope() * x)
-        
-        x = [s.rdistance for s in self.spectra]
-        y = [s.OH for s in self.spectra]
-        remove_nan(x, y)
-        x = numpy.array(x)
-        y = numpy.array(y)
-        x = x / self.r25
-        lsqout = fit(function, [slope, intercept], y, x)
+        lsqout = fit_OH(self.spectra, self.r25)
         self.fit = lsqout
         self.grad = lsqout[0][0]
         self.metal = lsqout[0][1] + lsqout[0][0] * 0.4
-        return lsqout
     
     def output_graphs(self):
         graph_metalicity(self)
