@@ -182,18 +182,6 @@ def parse_log(name, fn, spectradict):
     return spectradict
 
 
-class ParameterClass:
-    
-    def __init__(self, value):
-        self.value = value
-    
-    def set(self, value):
-        self.value = value
-    
-    def __call__(self):
-        return self.value
-    
-
 class SpectrumClass:
     
     def __init__(self, num):
@@ -242,36 +230,27 @@ class SpectrumClass:
     
 
 
-def fit(function, parameters, y, x):
+def fit(x0, y, x):
     
     def f(params):
-        i = 0
-        for p in parameters:
-            p.set(params[i])
-            i += 1
-        return y - function(x)
+        return y - (params[1] + params[0] * x)
     
     if x is None:
         x = numpy.arange(y.shape[0])
-    p = [param() for param in parameters]
-    return scipy.optimize.leastsq(f, p)
+    return scipy.optimize.leastsq(f, x0)
     
 
 def fit_OH(spectra, r25):
     # inital guess: flat and solar metallicity
-    slope = ParameterClass(0)
-    intercept = ParameterClass(8.6)
-    
-    def function(x):
-        return (intercept() + slope() * x)
-    
+    slope = 0
+    intercept = 8.6
     x = [s.rdistance for s in spectra]
     y = [s.OH for s in spectra]
     remove_nan(x, y)
     x = numpy.array(x)
     y = numpy.array(y)
     x = x / r25
-    lsqout = fit(function, [slope, intercept], y, x)
+    lsqout = fit([slope, intercept], y, x)
     return lsqout    
 
 class GalaxyClass:
