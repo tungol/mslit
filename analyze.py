@@ -226,6 +226,45 @@ class SpectrumClass:
             measurement.update({'name': badness[min(badness.keys())]})
     
 
+
+def is_spectra_head(line):
+    if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'):
+        return True
+    else:
+        return False
+
+
+def is_labels(line):
+    labelstr = ("    center      cont      flux       eqw      core     gfwhm"
+                "     lfwhm\n")
+    if line == labelstr:
+        return True
+    return False
+
+
+def get_num(line):
+    start = line.find('[') + 1
+    return line[start:start + 3]
+
+
+def parse_log(name, fn, spectradict):
+    with open('%s/measurements/%s' % (name, fn)) as f:
+        raw = f.readlines()
+    current = None
+    for line in raw:
+        if is_spectra_head(line):
+            num = get_num(line)
+            if num in spectradict:
+                current = spectradict[num]
+            else:
+                current = SpectrumClass(num)
+                spectradict.update({num: current})
+        elif line.strip() != '' and not is_labels(line):
+            current.add_measurement(line)
+    return spectradict
+
+
 class GalaxyClass:
     
     def __init__(self, name):
@@ -240,41 +279,13 @@ class GalaxyClass:
         else:
             raise AttributeError
     
-    def add_log(self, fn):
-        
-        def is_spectra_head(line):
-            if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'):
-                return True
-            else:
-                return False
-        
-        def is_labels(line):
-            labelstr = ("    center      cont      flux       eqw      core"
-                        "     gfwhm     lfwhm\n")
-            if line == labelstr:
-                return True
-            return False
-        
-        def get_num(line):
-            start = line.find('[') + 1
-            return line[start:start + 3]
-        
-        with open('%s/measurements/%s' % (self.id, fn)) as f:
-            raw = f.readlines()
-        for line in raw:
-            if is_spectra_head(line):
-                num = get_num(line)
-                if not num in self.spectradict:
-                    self.spectradict.update({num: SpectrumClass(num)})
-            elif line.strip() != '' and not is_labels(line):
-                self.spectradict[num].add_measurement(line)
-    
     def add_logs(self):
         fns = os.listdir('%s/measurements/' % self.id)
+        spectradict = {}
         for fn in fns:
             if fn[-4:] == '.log':
-                self.add_log(fn)
+                spectradict.update(parse_log(self.id, fn, spectradict))
+        self.spectradict.update(spectradict)
     
     def add_spectra(self, num, spectra):
         self.spectradict.update({num: spectra})
