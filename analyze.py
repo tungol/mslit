@@ -77,7 +77,7 @@ def parse_line(line, num):
     return float(item)
 
 
-def k(l):
+def extinction_k(l):
     # for use in the calzetti method
     # convert to micrometers from angstrom
     l = l / 10000.
@@ -101,7 +101,7 @@ def correct_extinction(R_obv, lines):
     values = []
     for line in lines:
         flux = line['flux'] / (10 ** (-0.4 * extinction *
-                                      k(line['center'])))
+                                      extinction_k(line['center'])))
         values.append((line['name'], flux))
     return values
 
@@ -266,7 +266,6 @@ class SpectrumClass:
         R_obv = self.fluxes['halpha'] / self.fluxes['hbeta']
         if numpy.isnan(R_obv):
             self.corrected = False
-            self.num = self.num + '*'
         else:
             values = correct_extinction(R_obv, self.lines.values())
             for name, flux in values:

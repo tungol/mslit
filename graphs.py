@@ -39,15 +39,11 @@ def graph_metalicity(galaxy):
     axes.plot(t, solardata, 'k--')
     # label solar metalicity
     axes.text(1.505, 8.665, r'$Z_\odot$', transform=axes.transData)
-    canvas.print_eps('tables/%s_metals.eps' % galaxy.id)
+    canvas.print_eps('tables/%s_metals.eps' % galaxy.num)
 
 
 def graph_sfr(galaxy):
-    spectra = galaxy.spectra
-    #remove uncorrected values
-    for spectrum in spectra[:]:
-        if spectrum.id[-1] == '*':
-            spectra.remove(spectrum)
+    spectra = [s for s in galaxy.spectra if s.corrected]
     SFR = [s.SFR for s in spectra]
     r = [s.rdistance for s in spectra]
     remove_nan(SFR, r)
@@ -63,7 +59,7 @@ def graph_sfr(galaxy):
     axes.set_xbound(lower=0, upper=1.5)
     #plot the data
     axes.plot(r, SFR, 'co')
-    canvas.print_eps('tables/%s_sfr.eps' % galaxy.id)
+    canvas.print_eps('tables/%s_sfr.eps' % galaxy.num)
 
 
 def graph_sfr_metals(galaxy):
@@ -75,7 +71,7 @@ def graph_sfr_metals(galaxy):
     spectra = galaxy.spectra
     #remove uncorrected values
     for spectrum in spectra[:]:
-        if spectrum.id[-1] == '*':
+        if spectrum.num[-1] == '*':
             spectra.remove(spectrum)
     OH = [s.OH for s in spectra]
     SFR = [s.SFR for s in spectra]
@@ -90,7 +86,7 @@ def graph_sfr_metals(galaxy):
     solardata = 8.69 + t * 0
     axes.plot(t, solardata, 'k--')
     axes.text(xbound[1] * 1.01, 8.665, r'$Z_\odot$')
-    canvas.print_eps('tables/%s_sfr-metal.eps' % galaxy.id)
+    canvas.print_eps('tables/%s_sfr-metal.eps' % galaxy.num)
 
 
 def compare_basic(galaxies, other):

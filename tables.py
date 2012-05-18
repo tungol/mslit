@@ -55,7 +55,11 @@ def arrange_spectra(spectra, keys):
         if spectrum.corrected != True:
             string.append('$^a$')
         for item in keys:
-            string.append(' & %s' % sigfigs_format(spectrum.__dict__[item], 2))
+            if item in spectrum.fluxes:
+                value = spectrum.fluxes[item]
+            else:
+                value = spectrum.__dict__[item]
+            string.append(' & %s' % sigfigs_format(value, 2))
         string.append(' \\\\\n')
     return string
 
@@ -95,20 +99,20 @@ def make_data_table(galaxy, lookup):
     lookup = dict([(item, lookup[item]) for item in values])
     string = make_tabular((galaxy.spectra,), lookup, 'Number', arrange_spectra,
                           make_table)
-    with open('tables/%s.tex' % galaxy.id, 'w') as f:
+    with open('tables/%s.tex' % galaxy.num, 'w') as f:
         f.write(string)
 
 
 def make_flux_table(galaxy, lines, lookup):
     lines.sort()
     for item in lines[:]:
-        unused = [numpy.isnan(spec.__dict__[item]) for spec in galaxy.spectra]
+        unused = [numpy.isnan(spec.fluxes[item]) for spec in galaxy.spectra]
         if False not in unused:
             lines.remove(item)
     lookup = dict([(item, lookup[item]) for item in lines])
     string = make_tabular((galaxy.spectra,), lookup, 'Number', arrange_spectra,
                           make_table)
-    with open('tables/%sflux.tex' % galaxy.id, 'w') as f:
+    with open('tables/%sflux.tex' % galaxy.num, 'w') as f:
         f.write(string)
 
 
