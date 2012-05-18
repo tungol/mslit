@@ -39,7 +39,6 @@ def graph_metalicity(galaxy):
     axes.plot(t, solardata, 'k--')
     # label solar metalicity
     axes.text(1.505, 8.665, r'$Z_\odot$', transform=axes.transData)
-    #fig.text(.5, .5, r'$Z_\odot$', transform=axes.transData)
     canvas.print_eps('tables/%s_metals.eps' % galaxy.id)
 
 

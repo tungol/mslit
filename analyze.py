@@ -8,14 +8,39 @@ import numpy
 import scipy.optimize
 import coords
 from mslit.data import get
-from mslit.misc import remove_nan, avg, rms
+from mslit.misc import remove_nan, avg
 from graphs import graph_metalicity, graph_sfr, graph_sfr_metals
 from graphs import compare_basic, compare
 from tables import make_flux_table, make_data_table, make_comparison_table
-from tables import compare_table
+from tables import make_group_comparison_table
+
+
+LINES = {'OII': 3727, 'hgamma': 4341, 'hbeta': 4861, 'OIII1': 4959,
+         'OIII2': 5007, 'NII1': 6548, 'halpha': 6563, 'NII2': 6583,
+         'SII1': 6717, 'SII2': 6731, 'OIII3': 4363}
+
+LOOKUP = {'OII': '[O II]$\lambda3727$', 'hgamma': 'H$\gamma$',
+          'hbeta': 'H$\\beta$', 'OIII1': '[O III]$\lambda4959$',
+          'OIII2': '[O III]$\lambda5007$', 'NII1': '[N II]$\lambda6548$',
+          'halpha': 'H$\\alpha$', 'NII2': '[N II]$\lambda6583$',
+          'SII1': '[S II]$\lambda6717$', 'SII2': '[S II]$\lambda6731$',
+          'OIII3': '[O III]$\lambda4363$',
+          'OH': '$12 + \log{\\textnormal{O/H}}$',
+          'SFR': 'SFR(M$_\odot$ / year)', 'rdistance': 'Radial Distance (kpc)',
+          'extinction': 'E(B - V)', 'r23': '$R_{23}$'}
 
 
 ## Some Math ##
+
+
+def cubic_solutions(a, alpha, beta):
+    w1 = -.5 + .5 * math.sqrt(3) * 1j
+    w2 = -.5 - .5 * math.sqrt(3) * 1j
+    solution1 = -(1.0 / 3) * (a + alpha + beta)
+    solution2 = -(1.0 / 3) * (a + w2 * alpha + w1 * beta)
+    solution3 = -(1.0 / 3) * (a + w1 * alpha + w2 * beta)
+    return [solution1, solution2, solution3]
+
 
 def cubic_solve(b0, b1, b2, b3):
     a = b2 / b3
@@ -24,30 +49,23 @@ def cubic_solve(b0, b1, b2, b3):
     m = 2 * (a ** 3) - 9 * a * b + 27 * c
     k = (a ** 2) - 3 * b
     n = (m ** 2) - 4 * (k ** 3)
-    w1 = -.5 + .5 * math.sqrt(3) * 1j
-    w2 = -.5 - .5 * math.sqrt(3) * 1j
     alpha = (.5 * (m + cmath.sqrt(n))) ** (1.0 / 3)
     beta = (.5 * (m - cmath.sqrt(n))) ** (1.0 / 3)
-    solution1 = -(1.0 / 3) * (a + alpha + beta)
-    solution2 = -(1.0 / 3) * (a + w2 * alpha + w1 * beta)
-    solution3 = -(1.0 / 3) * (a + w1 * alpha + w2 * beta)
-    return [solution1, solution2, solution3]
-
-
+    return cubic_solutions(a, alpha, beta)
 
 
 ## Convenience functions ##
 
 
 def fit(function, parameters, y, x=None):
-
+    
     def f(params):
         i = 0
         for p in parameters:
             p.set(params[i])
             i += 1
         return y - function(x)
-
+    
     if x is None:
         x = numpy.arange(y.shape[0])
     p = [param() for param in parameters]
@@ -57,306 +75,218 @@ def fit(function, parameters, y, x=None):
 ## Useful classes ##
 
 
-class ParameterClass:
+def parse_line(line, num):
+    # format is center, cont, flux, eqw, core, gfwhm, lfwhm
+    item = line.split()[num]
+    if item == 'INDEF':
+        item = "NaN"
+    return float(item)
 
+
+def k(l):
+    # for use in the calzetti method
+    # convert to micrometers from angstrom
+    l = l / 10000.
+    if 0.63 <= l <= 1.0:
+        return ((1.86 / l ** 2) - (0.48 / l ** 3) -
+            (0.1 / l) + 1.73)
+    elif 0.12 <= l < 0.63:
+        return (2.656 * (-2.156 + (1.509 / l) -
+            (0.198 / l ** 2) + (0.011 / l ** 3)) + 4.88)
+    else:
+        raise ValueError
+
+
+def correct_extinction(R_obv, lines):
+    # using the method described here:
+# <http://www.astro.umd.edu/~chris/publications/html_papers/aat/node13.html>
+    R_intr = 2.76
+    a = 2.21
+    extinction = a * math.log10(R_obv / R_intr)
+    # Now using the Calzetti method:
+    values = []
+    for line in lines:
+        flux = line['flux'] / (10 ** (-0.4 * extinction *
+                                      k(line['center'])))
+        values.append((line['name'], flux))
+    return values
+
+
+def calculate_OH(r23, branch=None):
+    """ Calculate metalicity of the spectrum """
+    # uses conversion given by nagao 2006
+    b0 = 1.2299 - math.log10(r23)
+    b1 = -4.1926
+    b2 = 1.0246
+    b3 = -6.3169 * 10 ** -2
+    # solving the equation
+    solutions = cubic_solve(b0, b1, b2, b3)
+    for i, item in enumerate(solutions):
+        if item.imag == 0.0:
+            solutions[i] = item.real
+        else:
+            solutions[i] = float('NaN')
+    if branch is not None:
+        # if given, branch should be the ratio OIII2 / OII
+        if branch < 2:
+            return solutions[2]
+        else:
+            return solutions[1]
+    else:
+        return solutions[2]
+
+
+def calculate_r23(hbeta, OII, OIII1, OIII2):
+    r2 = OII / hbeta
+    r3 = (OIII1 + OIII2) / hbeta
+    r23 = r2 + r3
+    return r23
+
+
+def calculate_radial_distance(ra, dec, center, distance):
+    """ Calculate the galctocentric radius of the region """
+    position = coords.Position('%s %s' % (ra, dec))
+    theta = coords.Position(center).angsep(position)
+    # radial distance in kiloparsecs
+    return distance * math.tan(math.radians(theta.degrees()))
+
+
+def calculate_sfr(distance, halpha_flux):
+    """halpha SFR calibration given by Kennicutt 1998"""
+    d = distance * 3.0857 * (10 ** 21)
+    luminosity = halpha_flux * 4 * math.pi * (d ** 2)
+    return luminosity * 7.9 * (10 ** -42)
+
+
+class ParameterClass:
+    
     def __init__(self, value):
         self.value = value
-
+    
     def set(self, value):
         self.value = value
-
+    
     def __call__(self):
         return self.value
-
-
-class MeasurementClass:
-
-    def __init__(self, line):
-
-        def conv(str):
-            if str == "INDEF":
-                str = "NaN"
-            return float(str)
-
-        if line != '':
-            list = line.split()
-            self.center = conv(list.pop(0))
-            self.cont = conv(list.pop(0))
-            self.flux = conv(list.pop(0))
-            self.eqw = conv(list.pop(0))
-            self.core = conv(list.pop(0))
-            self.gfwhm = conv(list.pop(0))
-            self.lfwhm = conv(list.pop(0))
-
-    def __repr__(self):
-        return str(self.flux)
-
-    def calculate(self):
-        values = ['center', 'cont', 'flux', 'eqw', 'core', 'gfwhm', 'lfwhm']
-        for value in values:
-            tmp = [x.__dict__[value] for x in self.source]
-            self.__dict__[value] = avg(*tmp)
-            self.__dict__['%srms' % value] = rms(*tmp)
-
+    
 
 class SpectrumClass:
-
-    def __init__(self, id):
-        self.id = id
-        try:
-            self.number = int(id)
-        except:
-            pass
+    
+    def __init__(self, num):
+        self.id = num
+        self.number = int(num)
         self.measurements = []
-
-    def __getattr__(self, name):
-        # for all internals not otherwise defined, act like the name
-        if name[0:2] == '__':
-            return eval('self.id.%s' % name)
-        # if 'data' is present, lookup in there too
-        elif 'data' in self.__dict__:
-            if name in self.data:
-                return self.data[name]
-        raise AttributeError
-
+    
     def add_measurement(self, line):
         """ add a measurement from splot log files """
-        self.measurements.append(MeasurementClass(line))
-
+        self.measurements.append({'flux': parse_line(line, 2),
+                                  'center': parse_line(line, 0)})
+    
     def add_measurement2(self, name, flux):
         """ add a measurement with known name and flux """
-        measurement = MeasurementClass('')
-        self.measurements.append(measurement)
-        measurement.flux = flux
-        measurement.name = name
-
-    def calculate(self):
-        """ run every item in self.computed and save them as the key """
-        for key, value in self.computed.items():
-            try:
-                self.__dict__[key] = self.call(value)
-            except (ZeroDivisionError, AttributeError):
-                self.__dict__[key] = float('NaN')
-
+        self.measurements.append({'flux': flux, 'name': name})
+    
+    def calculate(self, distance, center, ra, dec):
+        self.r23 = calculate_r23(self.hbeta, self.OII, self.OIII1, self.OIII2)
+        self.OH = self.calculate_OH(self)
+        self.rdistance = calculate_radial_distance(ra, dec, center, distance)
+        self.SFR = calculate_sfr(distance, self.halpha)
+    
     def calculate_OH(self, disambig=True):
-        """ Calculate metalicity of the spectrum """
-        try:
-            r23 = self.r23
-        except:
-            r23 = self.calculate_r23()
-        # uses conversion given by nagao 2006
-        b0 = 1.2299 - math.log10(r23)
-        b1 = -4.1926
-        b2 = 1.0246
-        b3 = -6.3169 * 10 ** -2
-        # solving the equation
-        solutions = cubic_solve(b0, b1, b2, b3)
-        for i, item in enumerate(solutions):
-            if item.imag == 0.0:
-                solutions[i] = item.real
-            else:
-                solutions[i] = float('NaN')
         if disambig:
             branch = self.OIII2 / self.OII
-            if branch < 2:
-                return solutions[2]
-            else:
-                return solutions[1]
-        else:
-            return solutions[2]
-
-    def calculate_r23(self):
-        """ calculate and return the value of R_23 """
-        r2 = self.OII / self.hbeta
-        r3 = (self.OIII1 + self.OIII2) / self.hbeta
-        r23 = r2 + r3
-        return r23
-
-    def calculate_radial_distance(self):
-        """ Calculate the galctocentric radius of the region """
-        position = coords.Position('%s %s' % (self.ra, self.dec))
-        theta = self.center.angsep(position)
-        # radial distance in kiloparsecs
-        return self.distance * math.tan(math.radians(theta.degrees()))
-
-    def calculate_SFR(self):
-        """halpha SFR calibration given by Kennicutt 1998"""
-        d = self.distance * 3.0857 * (10 ** 21)
-        flux = self.halpha
-        luminosity = flux * 4 * math.pi * (d ** 2)
-        return luminosity * 7.9 * (10 ** -42)
-
-    def call(self, method, *args, **kwargs):
-        """ call a class method given the name of the method as a string """
-        return self.__class__.__dict__[method](self, *args, **kwargs)
-
-    def collate_lines(self, lines):
+            return calculate_OH(self.r23, branch)
+        return calculate_OH(self.r23)
+    
+    def collate_lines(self):
         self.lines = {}
-        for name, loc in lines.items():
-            self.lines.update({name: MeasurementClass('')})
-            self.lines[name].name = name
-            self.lines[name].loc = loc
-            sources = []
-            for measurement in self.measurements:
-                if measurement.name == name:
-                    sources.append(measurement)
-            self.lines[name].source = sources
-        for name, line in self.lines.items():
-            line.calculate()
-            self.__dict__[name] = line.flux
-
+        for name, location in LINES.items():
+            line = {'name': name, 'center': location}
+            self.lines.update({name: line})
+            sources = [m for m in self.measurements if m['name'] == name]
+            flux = avg(*[s['flux'] for s in sources])
+            self.lines[name].update({'flux': flux})
+            self.__dict__[name] = flux
+    
     def correct_extinction(self):
-
-        def k(l):
-            # for use in the calzetti method
-            # convert to micrometers from angstrom
-            l = l / 10000.
-            if 0.63 <= l <= 1.0:
-                return ((1.86 / l ** 2) - (0.48 / l ** 3) -
-                    (0.1 / l) + 1.73)
-            elif 0.12 <= l < 0.63:
-                return (2.656 * (-2.156 + (1.509 / l) -
-                    (0.198 / l ** 2) + (0.011 / l ** 3)) + 4.88)
-            else:
-                raise ValueError
-
-#        using the method described here:
-#  <http://www.astro.umd.edu/~chris/publications/html_papers/aat/node13.html>
-        R_intr = 2.76
-        a = 2.21
         R_obv = self.halpha / self.hbeta
         if numpy.isnan(R_obv):
             self.corrected = False
             self.id = self.id + '*'
-            return
-        self.extinction = a * math.log10(R_obv / R_intr)
-#        Now using the Calzetti method:
-        for line in self.lines.values():
-            line.obv_flux = line.flux
-            line.flux = line.obv_flux / (10 **
-                (-0.4 * self.extinction * k(line.loc)))
-            self.__dict__[line.name] = line.flux
-        self.corrected = True
-
+        else:
+            values = correct_extinction(R_obv, self.lines.values())
+            for name, flux in values:
+                self.__dict__[name] = flux
+            self.corrected = True
+    
     def id_lines(self, lines):
         for measurement in self.measurements:
-            tmp = {}
-            for name in lines:
-                tmp.update({(abs(measurement.center -
-                    lines[name])): name})
-            name = tmp[min(tmp.keys())]
-            measurement.name = name
-
+            badness = dict([(abs(measurement['center'] - lines[name]), name)
+                            for name in lines])
+            measurement.update({'name': badness[min(badness.keys())]})
+    
 
 class GalaxyClass:
-
-    def __init__(self, id):
-        self.id = id
+    
+    def __init__(self, name):
+        self.id = name
         self.spectradict = {}
-        self.lines = {'OII': 3727, 'hgamma': 4341, 'hbeta': 4861,
-            'OIII1': 4959, 'OIII2': 5007, 'NII1': 6548,
-            'halpha': 6563, 'NII2': 6583, 'SII1': 6717,
-            'SII2': 6731, 'OIII3': 4363}
-        self.lookup = {'OII': '[O II]$\lambda3727$',
-                       'hgamma': 'H$\gamma$',
-                       'hbeta': 'H$\\beta$',
-                       'OIII1': '[O III]$\lambda4959$',
-                       'OIII2': '[O III]$\lambda5007$',
-                       'NII1': '[N II]$\lambda6548$',
-                       'halpha': 'H$\\alpha$',
-                       'NII2': '[N II]$\lambda6583$',
-                       'SII1': '[S II]$\lambda6717$',
-                       'SII2': '[S II]$\lambda6731$',
-                       'OIII3': '[O III]$\lambda4363$',
-                       'OH': '$12 + \log{\\textnormal{O/H}}$',
-                       'SFR': 'SFR(M$_\odot$ / year)',
-                       'rdistance': 'Radial Distance (kpc)',
-                       'extinction': 'E(B - V)',
-                       'r23': '$R_{23}$'}
-        self.computed = {'r23': 'calculate_r23',
-                         'SFR': 'calculate_SFR',
-                         'rdistance': 'calculate_radial_distance',
-                         'OH': 'calculate_OH'}
-
+    
     def __getattr__(self, name):
         if name == 'spectra':
             spectra = self.spectradict.values()
             spectra.sort()
             return spectra
-        elif name == '__repr__':
-            return self.id.__repr__
         else:
             raise AttributeError
-
+    
     def add_log(self, fn):
-
+        
         def is_spectra_head(line):
             if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'):
                 return True
             else:
                 return False
-
+        
         def is_labels(line):
-            labelstr = "    center      cont      flux       eqw"
-            labelstr = labelstr + "      core     gfwhm     lfwhm\n"
+            labelstr = ("    center      cont      flux       eqw      core"
+                        "     gfwhm     lfwhm\n")
             if line == labelstr:
                 return True
             return False
-
+        
         def get_num(line):
             start = line.find('[') + 1
-            stop = start + 3
-            return line[start:stop]
-
-        with open('%s/measurements/%s.log' % (self.id, fn)) as f:
+            return line[start:start + 3]
+        
+        with open('%s/measurements/%s' % (self.id, fn)) as f:
             raw = f.readlines()
         for line in raw:
             if is_spectra_head(line):
                 num = get_num(line)
                 if not num in self.spectradict:
-                    self.spectradict.update(
-                        {num: SpectrumClass(num)})
-            elif is_labels(line):
-                pass
-            elif line.strip() != '':
+                    self.spectradict.update({num: SpectrumClass(num)})
+            elif line.strip() != '' and not is_labels(line):
                 self.spectradict[num].add_measurement(line)
-
+    
     def add_logs(self):
-        logs = os.listdir('%s/measurements/' % self.id)
-        for log in logs:
-            if log[-4:] == '.log':
-                self.add_log(log[:-4])
-
+        fns = os.listdir('%s/measurements/' % self.id)
+        for fn in fns:
+            if fn[-4:] == '.log':
+                self.add_log(fn)
+    
     def add_spectra(self, num, spectra):
         self.spectradict.update({num: spectra})
-
-    def calculate(self):
-        data = get(self.id, 'positions')
-        center = coords.Position(self.center)
-        for spectrum in self.spectra:
-            sdata = data[spectrum.number]
-            sdata.update({'distance': self.distance, 'center': center})
-            spectrum.data = sdata
-            spectrum.computed = self.computed
-            spectrum.calculate()
-
-    def collate_lines(self):
-        for spectrum in self.spectra:
-            spectrum.collate_lines(self.lines)
-
-    def correct_extinction(self):
-        for spectrum in self.spectra:
-            spectrum.correct_extinction()
-
+    
     def fit_OH(self):
         # inital guess: flat and solar metallicity
         slope = ParameterClass(0)
         intercept = ParameterClass(8.6)
-
+        
         def function(x):
             return (intercept() + slope() * x)
-
+        
         x = [s.rdistance for s in self.spectra]
         y = [s.OH for s in self.spectra]
         remove_nan(x, y)
@@ -368,40 +298,34 @@ class GalaxyClass:
         self.grad = lsqout[0][0]
         self.metal = lsqout[0][1] + lsqout[0][0] * 0.4
         return lsqout
-
-    def get_fit_slope(self):
-        return self.grad
-
-    def get_metallicity(self):
-        return self.metal
-
-    def id_lines(self):
-        lines = self.lines.copy()
-        for item in lines:
-            lines.update({item: (lines[item] * (self.redshift + 1))})
-        for spectrum in self.spectra:
-            spectrum.id_lines(lines)
-
+    
     def output_graphs(self):
         graph_metalicity(self)
         graph_sfr(self)
         graph_sfr_metals(self)
-
+    
     def output_tables(self):
         spectra = self.spectra
         for i, spectrum in enumerate(spectra):
             spectrum.printnumber = i + 1
-        make_flux_table(self)
-        make_data_table(self)
-
+        make_flux_table(self, LINES.keys(), LOOKUP)
+        make_data_table(self, LOOKUP)
+    
     def run(self):
         self.add_logs()
-        self.id_lines()
-        self.collate_lines()
-        self.correct_extinction()
-        self.calculate()
+        lines = LINES.copy()
+        for item in lines:
+            lines.update({item: (lines[item] * (self.redshift + 1))})
+        data = get(self.id, 'positions')
         self.regions = len(self.spectra)
-
+        for spectrum in self.spectra:
+            spectrum.id_lines(lines)
+            spectrum.collate_lines()
+            spectrum.correct_extinction()
+            sdata = data[spectrum.number]
+            spectrum.calculate(self.distance, self.center, sdata['ra'],
+                               sdata['dec'])
+    
 
 ## Functions for reading in tables of data ##
 
@@ -492,12 +416,6 @@ def parse_keyfile(fn):
     return keys
 
 
-
-
-
-
-
-
 def main():
     os.chdir('../n3fresh')
     ngc3169 = GalaxyClass('ngc3169')
@@ -510,7 +428,7 @@ def main():
     ngc3169.bar = 'A'
     ngc3169.ring = 's'
     ngc3169.env = 'pair'
-
+    
     ngc4725 = GalaxyClass('ngc4725')
     ngc4725.name = 'NGC 4725'
     ngc4725.redshift = 0.004023
@@ -521,35 +439,34 @@ def main():
     ngc4725.bar = 'AB'
     ngc4725.ring = 'r'
     ngc4725.env = 'pair'
-
+    
     galaxies = [ngc3169, ngc4725]
     other_data = get_other()
-
+    
     for galaxy in galaxies:
         galaxy.run()
         galaxy.fit_OH()
         galaxy.output_tables()
         galaxy.output_graphs()
-
+    
     for galaxy in other_data:
         galaxy.fit_OH()
-
+    
     groups = {'env': {'Isolated': ('isolated',), 'Group': ('group',),
                       'Pair': ('pair',)},
               'ring': {'S-Shaped': ('s',), 'Intermediate Type': ('rs',),
                        'Ringed': ('r',)},
               'bar': {'No Bar': ('A',), 'Weakly Barred': ('AB',),
                       'Strongly Barred': 'B'},
-              'type': {'Sa and Sab': ('Sa', 'Sab'), 'Sb and Sbc': ('Sb', 'Sbc'),
+              'type': {'Sa and Sab': ('Sa', 'Sab'),
+                       'Sb and Sbc': ('Sb', 'Sbc'),
                        'Sc and Scd': ('Sc', 'Scd'), 'Sd': ('Sd', 'Irr')}}
-    titles = {'env': 'Environment', 'ring': 'Ring', 'bar': 'Bar',
-              'type': 'Hubble Type'}
-
+    
     compare_basic(galaxies, other_data)
     make_comparison_table(galaxies, other_data)
+    make_group_comparison_table(galaxies, other_data, groups)
     for key, groups in groups.items():
         compare(galaxies, other_data, groups, key)
-        compare_table(galaxies, other_data, groups, key, titles[key])
 
 
 if __name__ == '__main__':
