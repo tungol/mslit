@@ -269,15 +269,7 @@ class GalaxyClass:
     
     def __init__(self, name):
         self.id = name
-        self.spectradict = {}
-    
-    def __getattr__(self, name):
-        if name == 'spectra':
-            spectra = self.spectradict.values()
-            spectra.sort()
-            return spectra
-        else:
-            raise AttributeError
+        self.spectra = []
     
     def add_logs(self):
         fns = os.listdir('%s/measurements/' % self.id)
@@ -285,10 +277,7 @@ class GalaxyClass:
         for fn in fns:
             if fn[-4:] == '.log':
                 spectradict.update(parse_log(self.id, fn, spectradict))
-        self.spectradict.update(spectradict)
-    
-    def add_spectra(self, num, spectra):
-        self.spectradict.update({num: spectra})
+        self.spectra = spectradict.values()
     
     def fit_OH(self):
         # inital guess: flat and solar metallicity
@@ -375,7 +364,7 @@ def get_galaxies(fn, keys):
             OIII = hbeta * OIII
             r = current.r25 * r
             spectrum = SpectrumClass(str(number))
-            current.add_spectra(number, spectrum)
+            current.spectra.append(spectrum)
             spectrum.add_measurement2('hbeta', hbeta)
             spectrum.add_measurement2('OII', OII)
             spectrum.add_measurement2('OIII1', OIII)
