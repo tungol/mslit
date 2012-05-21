@@ -292,12 +292,10 @@ class GalaxyClass:
         # standard metallicity is the metallicity at r = 0.4
         self.metal = lsqout[0][1] + self.grad * 0.4
     
-    def output_graphs(self):
+    def output(self):
         graph_metalicity(self)
         graph_sfr(self)
         graph_sfr_metals(self)
-    
-    def output_tables(self):
         spectra = self.spectra
         for i, spectrum in enumerate(spectra):
             spectrum.printnumber = i + 1
@@ -384,8 +382,7 @@ def analyze():
     for galaxy in galaxies:
         galaxy.run()
         galaxy.fit_OH()
-        galaxy.output_tables()
-        galaxy.output_graphs()
+        galaxy.output()
     for galaxy in other_data:
         galaxy.fit_OH()
     compare_basic(galaxies, other_data)
