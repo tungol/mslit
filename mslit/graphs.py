@@ -124,7 +124,7 @@ def compare(galaxies, other, groups, key):
     # plot the data
     galaxies += other
     galaxy_sets = []
-    for group in groups:
+    for group in groups.values():
         galaxy_set = []
         for galaxy in galaxies:
             if galaxy.__dict__[key] in group:
