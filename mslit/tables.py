@@ -1,3 +1,12 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+"""
+tables.py - functions for outputting LaTeX tables of data
+
+
+"""
+
 import numpy
 from .misc import remove_nan, avg, std
 from .const import GROUPS
