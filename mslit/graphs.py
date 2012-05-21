@@ -8,6 +8,8 @@ Single galaxy graphs: graph_metallicity, graph_sfr, graph_sfr_metals
 Mutiple galaxy graphs: compare, compare_basic
 """
 
+# FIXME: data is different (!!) in output graphs, something deeply wrong
+
 import matplotlib
 from matplotlib.backends.backend_ps import FigureCanvasPS as FigureCanvas
 import numpy
@@ -40,9 +42,8 @@ def plot(galaxy_sets, axes, colors, xkey, ykey, only_corrected=False):
             x = [s.__dict__[xkey] for s in spectra]
             y = [s.__dict__[ykey] for s in spectra]
             remove_nan(x, y)
-            x = numpy.array(x)
-            y = numpy.array(y)
             if xkey is 'rdistance':
+                x = numpy.array(x)
                 x = x / galaxy.r25
             axes.plot(x, y, color)
 

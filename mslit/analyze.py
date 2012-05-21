@@ -44,12 +44,10 @@ def cubic_solve(b0, b1, b2, b3):
 ## Convenience functions ##
 
 
-def parse_line(line, num):
-    # format is center, cont, flux, eqw, core, gfwhm, lfwhm
-    item = line.split()[num]
-    if item == 'INDEF':
-        item = "NaN"
-    return float(item)
+def parse_line(line):
+    format = ('center', 'cont', 'flux', 'eqw', 'core', 'gfwhm', 'lfwhm')
+    values = [float(x) if x != 'INDEF' else float('nan') for x in line.split()]
+    return dict(zip(format, values))
 
 
 def extinction_k(l):
@@ -161,8 +159,8 @@ def parse_log(name, fn, spectradict):
                 current = SpectrumClass(num)
                 spectradict.update({num: current})
         elif line.strip() != '' and not is_labels(line):
-            current.measurements.append({'flux': parse_line(line, 2),
-                                         'center': parse_line(line, 0)})
+            values = parse_line(line)
+            current.measurements.append(values)
     return spectradict
 
 
