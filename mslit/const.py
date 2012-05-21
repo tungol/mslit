@@ -8,6 +8,8 @@ This file contains some dictionary of useful values, all used during
 analyzing data.
 """
 
+LOG_FORMAT = ('center', 'cont', 'flux', 'eqw', 'core', 'gfwhm', 'lfwhm')
+
 LINES = {'OII': 3727, 'hgamma': 4341, 'hbeta': 4861, 'OIII1': 4959,
          'OIII2': 5007, 'NII1': 6548, 'halpha': 6563, 'NII2': 6583,
          'SII1': 6717, 'SII2': 6731, 'OIII3': 4363}

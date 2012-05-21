@@ -14,7 +14,7 @@ from .graphs import graph_metalicity, graph_sfr, graph_sfr_metals
 from .graphs import compare_basic, compare
 from .tables import make_flux_table, make_data_table, make_comparison_table
 from .tables import make_group_comparison_table
-from .const import LINES, GROUPS, LOOKUP
+from .const import LINES, GROUPS, LOOKUP, LOG_FORMAT
 
 
 ## Some Math ##
@@ -45,9 +45,8 @@ def cubic_solve(b0, b1, b2, b3):
 
 
 def parse_line(line):
-    format = ('center', 'cont', 'flux', 'eqw', 'core', 'gfwhm', 'lfwhm')
     values = [float(x) if x != 'INDEF' else float('nan') for x in line.split()]
-    return dict(zip(format, values))
+    return dict(zip(LOG_FORMAT, values))
 
 
 def extinction_k(l):
@@ -233,16 +232,6 @@ class SpectrumClass:
             self.OH = calculate_OH(self.r23, branch)
         self.OH = calculate_OH(self.r23)
     
-    def collate_lines(self):
-        self.lines = {}
-        for name, location in LINES.items():
-            line = {'name': name, 'center': location}
-            self.lines.update({name: line})
-            sources = [m for m in self.measurements if m['name'] == name]
-            flux = avg(*[s['flux'] for s in sources])
-            self.lines[name].update({'flux': flux})
-            self.fluxes[name] = flux
-    
     def correct_extinction(self):
         R_obv = self.fluxes['halpha'] / self.fluxes['hbeta']
         if numpy.isnan(R_obv):
@@ -253,12 +242,24 @@ class SpectrumClass:
                 self.__dict__[name] = flux
             self.corrected = True
     
-    def id_lines(self, lines):
-        for measurement in self.measurements:
-            badness = dict([(abs(measurement['center'] - lines[name]), name)
-                            for name in lines])
-            measurement.update({'name': badness[min(badness.keys())]})
-    
+
+def collate_lines(region):
+    lines = {}
+    for name in LINES:
+        sources = [measurement for measurement in region
+                   if measurement['name'] == name]
+        line = {}
+        for item in LOG_FORMAT:
+            line.update({item: avg(*[s[item] for s in sources])})
+        lines.update({name: line})
+    return lines
+
+
+def id_lines(region, lines):
+    for measurement in region:
+        badness = dict([(abs(measurement['center'] - lines[name]), name)
+                        for name in lines])
+        measurement.update({'name': badness[min(badness.keys())]})
 
 class GalaxyClass:
     
@@ -300,15 +301,17 @@ class GalaxyClass:
         make_data_table(self, LOOKUP)
     
     def run(self):
-        self.add_logs()
+        measurements = get_measurements(self.num)
+        self.regions = len([r for r in measurements if r != []])
         lines = LINES.copy()
-        for item in lines:
-            lines.update({item: (lines[item] * (self.redshift + 1))})
+        for key, value in lines.items():
+            lines.update({key: (value * (self.redshift + 1))})
+        for group in measurements:
+            id_lines(group, lines)
+        measurements = [collate_lines(region) for region in measurements]
+        
         data = get(self.num, 'positions')
-        self.regions = len(self.spectra)
         for spectrum in self.spectra:
-            spectrum.id_lines(lines)
-            spectrum.collate_lines()
             spectrum.correct_extinction()
             sdata = data[spectrum.number]
             spectrum.calculate(self.distance, self.center, sdata['ra'],
