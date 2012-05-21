@@ -146,22 +146,16 @@ def get_num(line):
     return line[start:start + 3]
 
 
-def parse_log(name, fn, spectradict):
-    with open('%s/measurements/%s' % (name, fn)) as f:
-        raw = f.readlines()
+def parse_log(raw):
+    length = max([get_num(line) for line in raw if is_spectra_head(line)])
     current = None
+    measurements = [[] for i in range(length)]
     for line in raw:
         if is_spectra_head(line):
-            num = get_num(line)
-            if num in spectradict:
-                current = spectradict[num]
-            else:
-                current = SpectrumClass(num)
-                spectradict.update({num: current})
+            current = get_num(line)
         elif line.strip() != '' and not is_labels(line):
-            values = parse_line(line)
-            current.measurements.append(values)
-    return spectradict
+            measurements[current].append(parse_line(line))
+    return measurements
 
 
 def fit_OH(spectra, r25):
@@ -179,6 +173,20 @@ def fit_OH(spectra, r25):
         return y - (intercept + slope * x)
     
     return scipy.optimize.leastsq(f, (slope, intercept))
+
+
+def get_measurements(name):
+    fns = os.listdir('%s/measurements/' % name)
+    measurements = []
+    for fn in fns:
+        if fn[-4:] == '.log':
+            with open('%s/measurements/%s' % (name, fn)) as f:
+                measurements.append(parse_log(f.readlines()))
+    collated = measurements[0][:]
+    for log in measurements[1:]:
+        for i, region in enumerate(log):
+            collated[i].extend(region)
+    return collated
 
 
 ## Useful classes ##
@@ -273,15 +281,6 @@ class GalaxyClass:
                 self.redshift = data['redshift']
             if 'center' in data:
                 self.center = data['center']
-    
-    def add_logs(self):
-        fns = os.listdir('%s/measurements/' % self.num)
-        spectradict = {}
-        for fn in fns:
-            if fn[-4:] == '.log':
-                spectradict.update(parse_log(self.num, fn, spectradict))
-        self.spectra = spectradict.values()
-        self.spectra.sort(key=lambda x: x.num)
     
     def fit_OH(self):
         lsqout = fit_OH(self.spectra, self.r25)
