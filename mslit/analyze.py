@@ -1,6 +1,25 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
+"""
+analyze.py - Functions for preforming analysis of measured data.
+
+Primary entry point is the analyze function.
+
+Classes: GalaxyClass, RegionClass
+
+Functions:
+Math functions: cubic_solutions, cubic_solve
+Parsing splot logs: get_measurements, get_num, is_labels, is_region_head,
+                    parse_line, parse_log
+Processing data: collate_lines, id_lines
+Parsing data from other_data: process_galaxies, parse_keyfile, get_other
+calculating extinction: correct_extinction, extinction_k
+calculating metallicity: calculate_OH, calculate_r23, fit_OH
+other calculations: calculate_radial_distance, calculate_sfr
+
+"""
+
 from __future__ import with_statement
 import os
 import math
@@ -16,6 +35,138 @@ from .tables import make_flux_table, make_data_table, make_comparison_table
 from .tables import make_group_comparison_table
 from .const import LINES, GROUPS, LOG_FORMAT
 
+
+def analyze():
+    """Run the complete set of data analyzations and output tables and
+       graphs."""
+    groups = get_groups()
+    galaxies = []
+    for group in groups:
+        data = get(group['galaxy'], 'key')
+        galaxies.append(GalaxyClass(group['galaxy'], data))
+    other_data = get_other()
+    for galaxy in galaxies:
+        galaxy.run()
+        galaxy.fit_OH()
+        galaxy.output()
+    for galaxy in other_data:
+        galaxy.fit_OH()
+    compare_basic(galaxies, other_data)
+    make_comparison_table(galaxies, other_data)
+    make_group_comparison_table(galaxies, other_data)
+    for key, group in GROUPS.items():
+        compare(galaxies, other_data, group, key)
+
+
+## Useful classes ##
+
+
+class GalaxyClass:
+    """A class for information related to a galaxy of multiple regions."""
+    
+    def __init__(self, name, data):
+        self.name = name     # basic name, for id purposes
+        self.regions = []    # list of all the regions, empty for now
+        self.fit = None     # least square fitting solution for metallicity
+        self.grad = None     # fitted O/H metallicity gradient
+        self.metal = None       # standard metallicity of galaxy
+        self.region_number = None       # number of regions in galaxy
+        self.print_name = data['name']      # printable name for galaxy
+        self.distance = data['distance'] # distance to galaxy in kpc
+        self.r25 = data['r25']  # r_25 scale measure, in kpc
+        self.type = data['type']    # Sa to Sd hubble type
+        self.bar = data['bar']      # bar type
+        self.ring = data['ring']    # ring type
+        self.env = data['env']      # environment: group, pair, isolated
+        if 'redshift' in data:
+            self.redshift = data['redshift']  # redshift factor for galaxy
+        if 'center' in data:
+            self.center = data['center']    # Galactic center as RA, DEC string
+    
+    def fit_OH(self):
+        """Find a linear fit of O/H metallicity in galaxy using least
+           squares fitting."""
+        self.fit = fit_OH(self.regions, self.r25)
+        self.grad = self.fit[0][0]
+        # standard metallicity is the metallicity at r = 0.4
+        self.metal = self.fit[0][1] + self.grad * 0.4
+    
+    def output(self):
+        """Produce table and graph output."""
+        graph_metalicity(self)
+        graph_sfr(self)
+        graph_sfr_metals(self)
+        # remove regions with no data
+        # go backwards so that indexing is kept as items are deleted
+        for region in self.regions[::-1]:
+            if numpy.isnan(region.fluxes['halpha']):
+                del self.regions[region.number]
+        for count, region in enumerate(self.regions):
+            region.printnumber = count + 1
+        make_flux_table(self)
+        make_data_table(self)
+    
+    def run(self):
+        """Setup a galaxy from splot measurements."""
+        measurements = get_measurements(self.name)
+        self.region_number = len([r for r in measurements if r != []])
+        lines = LINES.copy()
+        for key, value in lines.items():
+            lines.update({key: (value * (self.redshift + 1))})
+        for group in measurements:
+            id_lines(group, lines)
+        groups = [collate_lines(region) for region in measurements]
+        data = get(self.name, 'positions')
+        for i, (fluxes, centers) in enumerate(groups):
+            region = RegionClass(i, fluxes, centers)
+            region.distance = self.distance
+            region.position = '%s %s' % (data[i]['ra'], data[i]['dec'])
+            region.center = self.center
+            region.calculate()
+            self.regions.append(region)
+    
+
+class RegionClass:
+    """A class for data related to individual regions."""
+    
+    def __init__(self, number, fluxes, centers=None):
+        self.number = number     # number of the region
+        self.fluxes = fluxes     # list of averaged flux measurements
+        self.centers = centers   # list of averaged wavelength centers
+        self.corrected = False  # has extinction correction been applied?
+        self.distance = None    # distance to galaxy
+        self.center = None      # RA, Dec of galactic center
+        self.OH = None      # O/H metallicity
+        self.SFR = None        # Star formation rate
+        self.rdistance = None   # galactocentric radius
+        self.position = None        # RA, Dec of the region
+        self.r23 = None     # r23 metallicity
+    
+    def calculate(self):
+        """Perform astrophysical calculations related to the region."""
+        self.correct_extinction()
+        self.rdistance = calculate_radial_distance(self.position, self.center,
+                                                   self.distance)
+        self.r23 = calculate_r23(self.fluxes)
+        self.calculate_OH()
+        self.SFR = calculate_sfr(self.distance, self.fluxes['halpha'])
+    
+    def calculate_OH(self, disambig=True):
+        """Calculate O/H metallicity for a region, optionally checking which
+           branch of the solution it is on."""
+        if disambig:
+            branch = self.fluxes['OIII2'] / self.fluxes['OII']
+            self.OH = calculate_OH(self.r23, branch)
+        self.OH = calculate_OH(self.r23)
+    
+    def correct_extinction(self):
+        """If possible, correct for all the regions flux measurements for
+           extinction."""
+        R_obv = self.fluxes['halpha'] / self.fluxes['hbeta']
+        if not numpy.isnan(R_obv):
+            self.fluxes = correct_extinction(R_obv, self.fluxes, self.centers)
+            self.corrected = True
+    
 
 ## Some Math ##
 
@@ -137,132 +288,22 @@ def id_lines(region, lines):
         measurement.update({'name': badness[min(badness.keys())]})
 
 
-## Useful classes ##
-
-class RegionClass:
-    """A class for data related to individual regions."""
-    
-    def __init__(self, number, fluxes, centers=None):
-        self.number = number     # number of the region
-        self.fluxes = fluxes     # list of averaged flux measurements
-        self.centers = centers   # list of averaged wavelength centers
-        self.corrected = False  # has extinction correction been applied?
-        self.distance = None    # distance to galaxy
-        self.center = None      # RA, Dec of galactic center
-        self.OH = None      # O/H metallicity
-        self.SFR = None        # Star formation rate
-        self.rdistance = None   # galactocentric radius
-        self.position = None        # RA, Dec of the region
-        self.r23 = None     # r23 metallicity
-    
-    def calculate(self):
-        """Perform astrophysical calculations related to the region."""
-        self.correct_extinction()
-        self.rdistance = calculate_radial_distance(self.position, self.center,
-                                                   self.distance)
-        self.r23 = calculate_r23(self.fluxes)
-        self.calculate_OH()
-        self.SFR = calculate_sfr(self.distance, self.fluxes['halpha'])
-    
-    def calculate_OH(self, disambig=True):
-        """Calculate O/H metallicity for a region, optionally checking which
-           branch of the solution it is on."""
-        if disambig:
-            branch = self.fluxes['OIII2'] / self.fluxes['OII']
-            self.OH = calculate_OH(self.r23, branch)
-        self.OH = calculate_OH(self.r23)
-    
-    def correct_extinction(self):
-        """If possible, correct for all the regions flux measurements for
-           extinction."""
-        R_obv = self.fluxes['halpha'] / self.fluxes['hbeta']
-        if not numpy.isnan(R_obv):
-            self.fluxes = correct_extinction(R_obv, self.fluxes, self.centers)
-            self.corrected = True
-    
-
-class GalaxyClass:
-    """A class for information related to a galaxy of multiple regions."""
-    
-    def __init__(self, name, data=None):
-        self.num = name
-        self.regions = []
-        self.fit = None
-        self.grad = None
-        self.metal = None
-        self.region_number = None
-        if data:
-            self.name = data['name']
-            self.distance = data['distance'] # in kpc
-            self.r25 = data['r25'] # in kpc
-            self.type = data['type']
-            self.bar = data['bar']
-            self.ring = data['ring']
-            self.env = data['env']
-            if 'redshift' in data:
-                self.redshift = data['redshift']
-            if 'center' in data:
-                self.center = data['center']
-    
-    def fit_OH(self):
-        lsqout = fit_OH(self.regions, self.r25)
-        self.fit = lsqout
-        self.grad = lsqout[0][0]
-        # standard metallicity is the metallicity at r = 0.4
-        self.metal = lsqout[0][1] + self.grad * 0.4
-    
-    def output(self):
-        graph_metalicity(self)
-        graph_sfr(self)
-        graph_sfr_metals(self)
-        # go backwards so that indexing is kept as items are deleted
-        for region in self.regions[::-1]:
-            if numpy.isnan(region.fluxes['halpha']):
-                del self.regions[region.number]
-        count = 1
-        for region in self.regions:
-            region.printnumber = count
-            count += 1
-        make_flux_table(self)
-        make_data_table(self)
-    
-    def run(self):
-        measurements = get_measurements(self.num)
-        self.region_number = len([r for r in measurements if r != []])
-        lines = LINES.copy()
-        for key, value in lines.items():
-            lines.update({key: (value * (self.redshift + 1))})
-        for group in measurements:
-            id_lines(group, lines)
-        groups = [collate_lines(region) for region in measurements]
-        data = get(self.num, 'positions')
-        for i, (fluxes, centers) in enumerate(groups):
-            region = RegionClass(i, fluxes, centers)
-            region.distance = self.distance
-            region.position = '%s %s' % (data[i]['ra'], data[i]['dec'])
-            region.center = self.center
-            region.calculate()
-            self.regions.append(region)
-    
-
 ## Functions for reading in tables of data ##
 
 
 def process_galaxies(fn, galaxydict):
+    """Read data from a file in other_data, and add that data to the
+       appropriate galaxy in galaxydict."""
     with open('other_data/%s' % fn) as f:
-        raw = f.readlines()
+        raw = [line.strip() for line in f.readlines()]
     current = None
     number = None
     for line in raw:
-        line = line.strip()
-        if line == '':
-            pass
-        elif line[0] == '*':
+        if line[0] == '*':
             current = galaxydict[line[1:]]
             number = 0
-        else:
+        elif line != '':
             (r, hbeta, r2, r3) = [float(item) for item in line.split('\t')]
-            # values I got were divided by hbeta
             data = {'hbeta': hbeta, 'OII': r2 * hbeta, 'OIII1': r3 * hbeta}
             region = RegionClass(number, data)
             region.r23 = r2 + r3
@@ -273,18 +314,8 @@ def process_galaxies(fn, galaxydict):
             number += 1
 
 
-def get_other():
-    files = os.listdir('other_data/')
-    files = [fn for fn in files if fn.startswith('table')]
-    galaxydict = parse_keyfile()
-    for fn in files:
-        process_galaxies(fn, galaxydict)
-    for galaxy in galaxydict.values():
-        galaxy.region_number = len(galaxy.regions)
-    return galaxydict.values()
-
-
 def parse_keyfile():
+    """Return a dictionary of the galaxies described in other_data/key.txt."""
     with open('other_data/key.txt') as f:
         raw = f.readlines()
     galaxydict = {}
@@ -303,48 +334,26 @@ def parse_keyfile():
     return galaxydict
 
 
-def analyze():
-    groups = get_groups()
-    galaxies = []
-    for group in groups:
-        data = get(group['galaxy'], 'key')
-        galaxies.append(GalaxyClass(group['galaxy'], data))
-    other_data = get_other()
-    for galaxy in galaxies:
-        galaxy.run()
-        galaxy.fit_OH()
-        galaxy.output()
-    for galaxy in other_data:
-        galaxy.fit_OH()
-    compare_basic(galaxies, other_data)
-    make_comparison_table(galaxies, other_data)
-    make_group_comparison_table(galaxies, other_data)
-    for key, group in GROUPS.items():
-        compare(galaxies, other_data, group, key)
+def get_other():
+    """Return a list of galaxy objects, one for each galaxy described in
+       the other_data directory."""
+    files = os.listdir('other_data/')
+    files = [fn for fn in files if fn.startswith('table')]
+    galaxydict = parse_keyfile()
+    for fn in files:
+        process_galaxies(fn, galaxydict)
+    for galaxy in galaxydict.values():
+        galaxy.region_number = len(galaxy.regions)
+    return galaxydict.values()
 
 
-################################
-## Astrophysical calculations ##
-################################
-
-## Extinction ##
-
-
-def extinction_k(l):
-    # for use in the calzetti method
-    # convert to micrometers from angstrom
-    l = l / 10000.
-    if 0.63 <= l <= 1.0:
-        return ((1.86 / l ** 2) - (0.48 / l ** 3) -
-            (0.1 / l) + 1.73)
-    elif 0.12 <= l < 0.63:
-        return (2.656 * (-2.156 + (1.509 / l) -
-            (0.198 / l ** 2) + (0.011 / l ** 3)) + 4.88)
-    else:
-        return float('nan')
+## Calculating extinction ##
 
 
 def correct_extinction(R_obv, fluxes, centers):
+    """Given an halpha/hbeta ratio, and a list of fluxes and their wavelength
+       locations, return extinction corrected fluxes. Uses the Calzetti
+       method."""
     # using the method described here:
 # <http://www.astro.umd.edu/~chris/publications/html_papers/aat/node13.html>
     R_intr = 2.76
@@ -359,34 +368,45 @@ def correct_extinction(R_obv, fluxes, centers):
     return values
 
 
-## Metallicity ##
+def extinction_k(l):
+    """Inner 'k' function for use in the Calzetti method of extinction
+       correction."""
+    # for use in the calzetti method
+    # convert to micrometers from angstrom
+    l = l / 10000.
+    if 0.63 <= l <= 1.0:
+        return ((1.86 / l ** 2) - (0.48 / l ** 3) -
+            (0.1 / l) + 1.73)
+    elif 0.12 <= l < 0.63:
+        return (2.656 * (-2.156 + (1.509 / l) -
+            (0.198 / l ** 2) + (0.011 / l ** 3)) + 4.88)
+    else:
+        return float('nan')
+
+
+## Calculating metallicity ##
 
 
 def calculate_OH(r23, branch=None):
-    """ Calculate metalicity of the region """
-    # uses conversion given by nagao 2006
+    """Convert r_23 to O/H metallicity, using conversion given by Nagao
+       2006."""
     b0 = 1.2299 - math.log10(r23)
     b1 = -4.1926
     b2 = 1.0246
     b3 = -6.3169 * 10 ** -2
     # solving the equation
     solutions = cubic_solve(b0, b1, b2, b3)
-    for i, item in enumerate(solutions):
-        if item.imag == 0.0:
-            solutions[i] = item.real
-        else:
-            solutions[i] = float('NaN')
+    solutions = [x.real if x.imag == 0.0 else float('nan') for x in solutions]
     if branch is not None:
         # if given, branch should be the ratio OIII2 / OII
         if branch < 2:
             return solutions[2]
-        else:
-            return solutions[1]
-    else:
-        return solutions[2]
+        return solutions[1]
+    return solutions[2]
 
 
 def calculate_r23(fluxes):
+    """Return the calucated R_23 metallicity, given a set of fluxes."""
     r2 = fluxes['OII'] / fluxes['hbeta']
     r3 = (fluxes['OIII1'] + fluxes['OIII2']) / fluxes['hbeta']
     r23 = r2 + r3
@@ -394,6 +414,8 @@ def calculate_r23(fluxes):
 
 
 def fit_OH(regions, r25):
+    """Use least squares method to find a linear fit for O/H metallicity over
+       a set of regions."""
     # inital guess: flat and solar metallicity
     slope = 0
     intercept = 8.6
@@ -405,12 +427,13 @@ def fit_OH(regions, r25):
     x = x / r25
     
     def f((slope, intercept)):
+        """Function to be fit by scipy.optimize.leastsq."""
         return y - (intercept + slope * x)
     
     return scipy.optimize.leastsq(f, (slope, intercept))
 
 
-## Distance ##
+## Other calculations ##
 
 def calculate_radial_distance(position1, position2, distance):
     """Calculate the distance between two sky locations at the same distance
@@ -421,10 +444,9 @@ def calculate_radial_distance(position1, position2, distance):
     return distance * math.tan(math.radians(theta.degrees()))
 
 
-## Star formation rate ##
-
 def calculate_sfr(distance, halpha_flux):
-    """halpha SFR calibration given by Kennicutt 1998"""
+    """Calculate star formation rate from H_alpha flux, using the calibration
+       given by Kennicutt 1998."""
     d = distance * 3.0857 * (10 ** 21)
     luminosity = halpha_flux * 4 * math.pi * (d ** 2)
     return luminosity * 7.9 * (10 ** -42)

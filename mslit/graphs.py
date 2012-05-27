@@ -4,6 +4,7 @@
 """
 graphs.py - functions for oupting graphs
 
+Generic plotting functions: add_solar_metallicity, plot
 Single galaxy graphs: graph_metallicity, graph_sfr, graph_sfr_metals
 Mutiple galaxy graphs: compare, compare_basic
 """
@@ -22,9 +23,9 @@ matplotlib.rc('font', family='serif', serif='Computer Modern Roman')
 
 
 def add_solar_metallicity(axes):
+    """Overplot solar metallicity on a given set of axes."""
     xbound = axes.get_xbound()
     t = numpy.arange(0, xbound[1] * (4 / 3.), xbound[1] * 0.05)
-    #overplot solar metalicity
     solardata = 8.69 + t * 0
     axes.plot(t, solardata, 'k--')
     axes.text(xbound[1] * (301 / 300.), 8.665, r'$Z_\odot$',
@@ -32,13 +33,22 @@ def add_solar_metallicity(axes):
 
 
 def plot(galaxy_sets, axes, colors, xkey, ykey, only_corrected=False):
+    """Make a plot.
+       
+       galaxy_sets: iterable containing sets of galaxies
+       axes: axes to plot on
+       colors: matplotlib color codes, matched to the sets in galaxy_sets
+       xkey: x values will be region.xkey for every region in a galaxy
+       ykey: y values will be region.ykey for every region in a galaxy
+       only_corrected: If set to true, only plot regions with extinction
+                       correction applied. Defaults to false."""
     for group, color in zip(galaxy_sets, colors):
         for galaxy in group:
             regions = galaxy.regions
             if only_corrected:
                 regions = [s for s in regions if s.corrected]
-            x = [s.__dict__[xkey] for s in regions]
-            y = [s.__dict__[ykey] for s in regions]
+            x = [r.__dict__[xkey] for r in regions]
+            y = [r.__dict__[ykey] for r in regions]
             remove_nan(x, y)
             if xkey is 'rdistance':
                 x = numpy.array(x)
@@ -70,7 +80,7 @@ def graph_metalicity(galaxy):
     axes.plot(t, fitdata, 'k-')
     #overplot solar metalicity
     add_solar_metallicity(axes)
-    canvas.print_eps('tables/%s_metals.eps' % galaxy.num)
+    canvas.print_eps('tables/%s_metals.eps' % galaxy.name)
 
 
 def graph_sfr(galaxy):
@@ -86,7 +96,7 @@ def graph_sfr(galaxy):
     axes.set_xbound(lower=0, upper=1.5)
     # plot the data
     plot(((galaxy,),), axes, ('co',), 'rdistance', 'SFR')
-    canvas.print_eps('tables/%s_sfr.eps' % galaxy.num)
+    canvas.print_eps('tables/%s_sfr.eps' % galaxy.name)
 
 
 def graph_sfr_metals(galaxy):
@@ -102,13 +112,19 @@ def graph_sfr_metals(galaxy):
     axes.set_ybound(lower=8.0, upper=9.7)
     axes.set_autoscale_on(False)
     add_solar_metallicity(axes)
-    canvas.print_eps('tables/%s_sfr-metal.eps' % galaxy.num)
+    canvas.print_eps('tables/%s_sfr-metal.eps' % galaxy.name)
 
 
 ## Mutliple Galaxy Plots ##
 
 
 def compare(galaxies, other, groups, key):
+    """Make a plot comparing many galaxies, color coding by groups.
+       
+       galaxies: list my galaxies
+       other: list of other galaxies
+       groups: as from mslit.const.GROUPS
+       key: function will check galaxy.key for all galaxies"""
     colors = ['y^', 'rd', 'mp', 'bD']
     fig = matplotlib.figure.Figure(figsize=(5, 5))
     canvas = FigureCanvas(fig)
@@ -136,7 +152,7 @@ def compare(galaxies, other, groups, key):
 
 
 def compare_basic(galaxies, other):
-    """Print metallicity versus """
+    """Print metallicity versus galactocentric radius for many galaxies."""
     fig = matplotlib.figure.Figure(figsize=(5, 5))
     canvas = FigureCanvas(fig)
     axes = fig.add_axes((.125, .1, .775, .8))
