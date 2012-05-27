@@ -60,21 +60,21 @@ def extinction_k(l):
         return (2.656 * (-2.156 + (1.509 / l) -
             (0.198 / l ** 2) + (0.011 / l ** 3)) + 4.88)
     else:
-        raise ValueError
+        return float('nan')
 
 
-def correct_extinction(R_obv, lines):
+def correct_extinction(R_obv, fluxes, centers):
     # using the method described here:
 # <http://www.astro.umd.edu/~chris/publications/html_papers/aat/node13.html>
     R_intr = 2.76
     a = 2.21
     extinction = a * math.log10(R_obv / R_intr)
     # Now using the Calzetti method:
-    values = []
-    for line in lines:
-        flux = line['flux'] / (10 ** (-0.4 * extinction *
-                                      extinction_k(line['center'])))
-        values.append((line['name'], flux))
+    values = {}
+    for name, flux in fluxes.items():
+        flux = flux / (10 ** (-0.4 * extinction *
+                              extinction_k(centers[name])))
+        values.update({name: flux})
     return values
 
 
@@ -109,11 +109,12 @@ def calculate_r23(fluxes):
     return r23
 
 
-def calculate_radial_distance(ra, dec, center, distance):
-    """ Calculate the galctocentric radius of the region """
-    position = coords.Position('%s %s' % (ra, dec))
-    theta = coords.Position(center).angsep(position)
-    # radial distance in kiloparsecs
+def calculate_radial_distance(position1, position2, distance):
+    """Calculate the distance between two sky locations at the same distance
+       from earth."""
+    position = coords.Position(position1)
+    theta = coords.Position(position2).angsep(position)
+    # radial distance returned in whatever units distance is in
     return distance * math.tan(math.radians(theta.degrees()))
 
 
@@ -142,13 +143,13 @@ def is_labels(line):
 
 def get_num(line):
     start = line.find('[') + 1
-    return line[start:start + 3]
+    return int(line[start:start + 3])
 
 
 def parse_log(raw):
     length = max([get_num(line) for line in raw if is_spectra_head(line)])
     current = None
-    measurements = [[] for i in range(length)]
+    measurements = [[] for i in range(length + 1)]
     for line in raw:
         if is_spectra_head(line):
             current = get_num(line)
@@ -192,39 +193,21 @@ def get_measurements(name):
 
 class SpectrumClass:
     
-    def __init__(self, num, data=None):
-        self.num = num
-        self.number = int(num)
-        self.measurements = []
-        self.fluxes = {}
-        self.printnumber = None # table order
-        self.OH = None
-        self.lines = None
-        self.SFR = None
-        self.corrected = None
-        if data:
-            (r, hbeta, OII, OIII, r25, distance) = data
-            r_23 = OII + OIII
-            OII = hbeta * OII
-            OIII = hbeta * OIII
-            r = r25 * r
-            self.measurements.append({'name': 'hbeta', 'flux': hbeta})
-            self.measurements.append({'name': 'OII', 'flux': OII})
-            self.measurements.append({'name': 'OIII1', 'flux': OIII})
-            self.rdistance = r
-            self.r23 = r_23
-            self.distance = distance
-            self.calculate_OH(disambig=False)
-            
+    def __init__(self, number, fluxes, centers=None):
+        self.number = number
+        self.fluxes = fluxes
+        self.centers = centers            
     
     def __repr__(self):
         return str(self.printnumber)
     
-    def calculate(self, distance, center, ra, dec):
+    def calculate(self):
+        self.correct_extinction()
+        self.rdistance = calculate_radial_distance(self.position, self.center,
+                                                   self.distance)
         self.r23 = calculate_r23(self.fluxes)
-        self.calculate_OH(self)
-        self.rdistance = calculate_radial_distance(ra, dec, center, distance)
-        self.SFR = calculate_sfr(distance, self.fluxes['halpha'])
+        self.calculate_OH()
+        self.SFR = calculate_sfr(self.distance, self.fluxes['halpha'])
     
     def calculate_OH(self, disambig=True):
         if disambig:
@@ -237,22 +220,22 @@ class SpectrumClass:
         if numpy.isnan(R_obv):
             self.corrected = False
         else:
-            values = correct_extinction(R_obv, self.lines.values())
-            for name, flux in values:
-                self.__dict__[name] = flux
+            self.fluxes = correct_extinction(R_obv, self.fluxes, self.centers)
             self.corrected = True
     
 
 def collate_lines(region):
-    lines = {}
+    fluxes = {}
+    centers = {}
     for name in LINES:
         sources = [measurement for measurement in region
                    if measurement['name'] == name]
         line = {}
         for item in LOG_FORMAT:
             line.update({item: avg(*[s[item] for s in sources])})
-        lines.update({name: line})
-    return lines
+        fluxes.update({name: line['flux']})
+        centers.update({name: line['center']})
+    return fluxes, centers
 
 
 def id_lines(region, lines):
@@ -260,6 +243,7 @@ def id_lines(region, lines):
         badness = dict([(abs(measurement['center'] - lines[name]), name)
                         for name in lines])
         measurement.update({'name': badness[min(badness.keys())]})
+
 
 class GalaxyClass:
     
@@ -308,14 +292,14 @@ class GalaxyClass:
             lines.update({key: (value * (self.redshift + 1))})
         for group in measurements:
             id_lines(group, lines)
-        measurements = [collate_lines(region) for region in measurements]
-        
+        groups = [collate_lines(region) for region in measurements]
         data = get(self.num, 'positions')
-        for spectrum in self.spectra:
-            spectrum.correct_extinction()
-            sdata = data[spectrum.number]
-            spectrum.calculate(self.distance, self.center, sdata['ra'],
-                               sdata['dec'])
+        for i, (fluxes, centers) in enumerate(groups):
+            spectrum = SpectrumClass(i, fluxes, centers)
+            spectrum.distance = self.distance
+            spectrum.position = '%s %s' % (data[i]['ra'], data[i]['dec'])
+            spectrum.center = self.center
+            spectrum.calculate()
     
 
 ## Functions for reading in tables of data ##
@@ -334,10 +318,14 @@ def process_galaxies(fn, galaxydict):
             current = galaxydict[line[1:]]
             number = 0
         else:
-            # r, hbeta, OII, OIII
-            data = [float(item) for item in line.split('\t')]
-            data += [current.r25, current.distance]
-            spectrum = SpectrumClass(str(number), data)
+            (r, hbeta, r2, r3) = [float(item) for item in line.split('\t')]
+            # values I got were divided by hbeta
+            data = {'hbeta': hbeta, 'OII': r2 * hbeta, 'OIII1': r3 * hbeta}
+            spectrum = SpectrumClass(number, data)
+            spectrum.r23 = r2 + r3
+            spectrum.rdistance = current.r25 * r
+            spectrum.distance = current.distance
+            spectrum.calculate_OH(disambig=False)
             current.spectra.append(spectrum)
             number += 1
 
