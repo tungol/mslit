@@ -21,6 +21,8 @@ from .const import LINES, GROUPS, LOG_FORMAT
 
 
 def cubic_solutions(a, alpha, beta):
+    """Calculate the solutions to a cubic function with given simplified
+       parameters."""
     w1 = -.5 + .5 * math.sqrt(3) * 1j
     w2 = -.5 - .5 * math.sqrt(3) * 1j
     solution1 = -(1.0 / 3) * (a + alpha + beta)
@@ -30,6 +32,7 @@ def cubic_solutions(a, alpha, beta):
 
 
 def cubic_solve(b0, b1, b2, b3):
+    """Calculate the solutions to a cubic function with given parameters."""
     a = b2 / b3
     b = b1 / b3
     c = (b0) / b3
@@ -41,141 +44,11 @@ def cubic_solve(b0, b1, b2, b3):
     return cubic_solutions(a, alpha, beta)
 
 
-## Convenience functions ##
-
-
-def parse_line(line):
-    values = [float(x) if x != 'INDEF' else float('nan') for x in line.split()]
-    return dict(zip(LOG_FORMAT, values))
-
-
-def extinction_k(l):
-    # for use in the calzetti method
-    # convert to micrometers from angstrom
-    l = l / 10000.
-    if 0.63 <= l <= 1.0:
-        return ((1.86 / l ** 2) - (0.48 / l ** 3) -
-            (0.1 / l) + 1.73)
-    elif 0.12 <= l < 0.63:
-        return (2.656 * (-2.156 + (1.509 / l) -
-            (0.198 / l ** 2) + (0.011 / l ** 3)) + 4.88)
-    else:
-        return float('nan')
-
-
-def correct_extinction(R_obv, fluxes, centers):
-    # using the method described here:
-# <http://www.astro.umd.edu/~chris/publications/html_papers/aat/node13.html>
-    R_intr = 2.76
-    a = 2.21
-    extinction = a * math.log10(R_obv / R_intr)
-    # Now using the Calzetti method:
-    values = {}
-    for name, flux in fluxes.items():
-        flux = flux / (10 ** (-0.4 * extinction *
-                              extinction_k(centers[name])))
-        values.update({name: flux})
-    return values
-
-
-def calculate_OH(r23, branch=None):
-    """ Calculate metalicity of the spectrum """
-    # uses conversion given by nagao 2006
-    b0 = 1.2299 - math.log10(r23)
-    b1 = -4.1926
-    b2 = 1.0246
-    b3 = -6.3169 * 10 ** -2
-    # solving the equation
-    solutions = cubic_solve(b0, b1, b2, b3)
-    for i, item in enumerate(solutions):
-        if item.imag == 0.0:
-            solutions[i] = item.real
-        else:
-            solutions[i] = float('NaN')
-    if branch is not None:
-        # if given, branch should be the ratio OIII2 / OII
-        if branch < 2:
-            return solutions[2]
-        else:
-            return solutions[1]
-    else:
-        return solutions[2]
-
-
-def calculate_r23(fluxes):
-    r2 = fluxes['OII'] / fluxes['hbeta']
-    r3 = (fluxes['OIII1'] + fluxes['OIII2']) / fluxes['hbeta']
-    r23 = r2 + r3
-    return r23
-
-
-def calculate_radial_distance(position1, position2, distance):
-    """Calculate the distance between two sky locations at the same distance
-       from earth."""
-    position = coords.Position(position1)
-    theta = coords.Position(position2).angsep(position)
-    # radial distance returned in whatever units distance is in
-    return distance * math.tan(math.radians(theta.degrees()))
-
-
-def calculate_sfr(distance, halpha_flux):
-    """halpha SFR calibration given by Kennicutt 1998"""
-    d = distance * 3.0857 * (10 ** 21)
-    luminosity = halpha_flux * 4 * math.pi * (d ** 2)
-    return luminosity * 7.9 * (10 ** -42)
-
-
-def is_spectra_head(line):
-    if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'):
-        return True
-    else:
-        return False
-
-
-def is_labels(line):
-    labelstr = ("    center      cont      flux       eqw      core     gfwhm"
-                "     lfwhm\n")
-    if line == labelstr:
-        return True
-    return False
-
-
-def get_num(line):
-    start = line.find('[') + 1
-    return int(line[start:start + 3])
-
-
-def parse_log(raw):
-    length = max([get_num(line) for line in raw if is_spectra_head(line)])
-    current = None
-    measurements = [[] for i in range(length + 1)]
-    for line in raw:
-        if is_spectra_head(line):
-            current = get_num(line)
-        elif line.strip() != '' and not is_labels(line):
-            measurements[current].append(parse_line(line))
-    return measurements
-
-
-def fit_OH(spectra, r25):
-    # inital guess: flat and solar metallicity
-    slope = 0
-    intercept = 8.6
-    x = [s.rdistance for s in spectra]
-    y = [s.OH for s in spectra]
-    remove_nan(x, y)
-    x = numpy.array(x)
-    y = numpy.array(y)
-    x = x / r25
-    
-    def f((slope, intercept)):
-        return y - (intercept + slope * x)
-    
-    return scipy.optimize.leastsq(f, (slope, intercept))
+## Log parsing functions ##
 
 
 def get_measurements(name):
+    """For a given galaxy, return a list of all of the measurements taken."""
     fns = os.listdir('%s/measurements/' % name)
     measurements = []
     for fn in fns:
@@ -189,7 +62,59 @@ def get_measurements(name):
     return collated
 
 
+def get_num(line):
+    """Return the number of the spectrum, given it's header line."""
+    start = line.find('[') + 1
+    return int(line[start:start + 3])
+
+
+def is_labels(line):
+    """Return true if the line from the log is the field labeling line."""
+    labelstr = ("    center      cont      flux       eqw      core     gfwhm"
+                "     lfwhm\n")
+    if line == labelstr:
+        return True
+    return False
+
+
+def is_spectra_head(line):
+    """Return true if a line is a spectrum header line. Test this by testing
+       if it begins with the abbreviation for a month."""
+    if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
+                    'Sep', 'Oct', 'Nov', 'Dec'):
+        return True
+    return False
+
+
+def parse_line(line):
+    """Return a dictionary of the values from a line of the log."""
+    values = [float(x) if x != 'INDEF' else float('nan') for x in line.split()]
+    return dict(zip(LOG_FORMAT, values))
+
+
+def parse_log(raw):
+    """Parse raw lines from a splot log file and return a list of all the
+       measurements found."""
+    length = max([get_num(line) for line in raw if is_spectra_head(line)])
+    current = None
+    measurements = [[] for i in range(length + 1)]
+    for line in raw:
+        if is_spectra_head(line):
+            current = get_num(line)
+        elif line.strip() != '' and not is_labels(line):
+            measurements[current].append(parse_line(line))
+    return measurements
+
+
+## Processing ##
+
+
 def collate_lines(region):
+    """Given all the measurements for a region, return the averaged fluxes of
+       each spectral line that we are interested in. Also return the average
+       wavelength that the line was found at."""
+    # This could be easily modified if you wanted to get the averages of other
+    # values that splot provides, or their standard deviations, etc.
     fluxes = {}
     centers = {}
     for name in LINES:
@@ -204,6 +129,8 @@ def collate_lines(region):
 
 
 def id_lines(region, lines):
+    """For all the measurements in a region, determine which spectral line they
+       are closest to in wavelength."""
     for measurement in region:
         badness = dict([(abs(measurement['center'] - lines[name]), name)
                         for name in lines])
@@ -384,3 +311,110 @@ def analyze():
     make_group_comparison_table(galaxies, other_data)
     for key, group in GROUPS.items():
         compare(galaxies, other_data, group, key)
+
+
+################################
+## Astrophysical calculations ##
+################################
+
+## Extinction ##
+
+
+def extinction_k(l):
+    # for use in the calzetti method
+    # convert to micrometers from angstrom
+    l = l / 10000.
+    if 0.63 <= l <= 1.0:
+        return ((1.86 / l ** 2) - (0.48 / l ** 3) -
+            (0.1 / l) + 1.73)
+    elif 0.12 <= l < 0.63:
+        return (2.656 * (-2.156 + (1.509 / l) -
+            (0.198 / l ** 2) + (0.011 / l ** 3)) + 4.88)
+    else:
+        return float('nan')
+
+
+def correct_extinction(R_obv, fluxes, centers):
+    # using the method described here:
+# <http://www.astro.umd.edu/~chris/publications/html_papers/aat/node13.html>
+    R_intr = 2.76
+    a = 2.21
+    extinction = a * math.log10(R_obv / R_intr)
+    # Now using the Calzetti method:
+    values = {}
+    for name, flux in fluxes.items():
+        flux = flux / (10 ** (-0.4 * extinction *
+                              extinction_k(centers[name])))
+        values.update({name: flux})
+    return values
+
+
+## Metallicity ##
+
+
+def calculate_OH(r23, branch=None):
+    """ Calculate metalicity of the spectrum """
+    # uses conversion given by nagao 2006
+    b0 = 1.2299 - math.log10(r23)
+    b1 = -4.1926
+    b2 = 1.0246
+    b3 = -6.3169 * 10 ** -2
+    # solving the equation
+    solutions = cubic_solve(b0, b1, b2, b3)
+    for i, item in enumerate(solutions):
+        if item.imag == 0.0:
+            solutions[i] = item.real
+        else:
+            solutions[i] = float('NaN')
+    if branch is not None:
+        # if given, branch should be the ratio OIII2 / OII
+        if branch < 2:
+            return solutions[2]
+        else:
+            return solutions[1]
+    else:
+        return solutions[2]
+
+
+def calculate_r23(fluxes):
+    r2 = fluxes['OII'] / fluxes['hbeta']
+    r3 = (fluxes['OIII1'] + fluxes['OIII2']) / fluxes['hbeta']
+    r23 = r2 + r3
+    return r23
+
+
+def fit_OH(spectra, r25):
+    # inital guess: flat and solar metallicity
+    slope = 0
+    intercept = 8.6
+    x = [s.rdistance for s in spectra]
+    y = [s.OH for s in spectra]
+    remove_nan(x, y)
+    x = numpy.array(x)
+    y = numpy.array(y)
+    x = x / r25
+    
+    def f((slope, intercept)):
+        return y - (intercept + slope * x)
+    
+    return scipy.optimize.leastsq(f, (slope, intercept))
+
+
+## Distance ##
+
+def calculate_radial_distance(position1, position2, distance):
+    """Calculate the distance between two sky locations at the same distance
+       from earth."""
+    position = coords.Position(position1)
+    theta = coords.Position(position2).angsep(position)
+    # radial distance returned in whatever units distance is in
+    return distance * math.tan(math.radians(theta.degrees()))
+
+
+## Star formation rate ##
+
+def calculate_sfr(distance, halpha_flux):
+    """halpha SFR calibration given by Kennicutt 1998"""
+    d = distance * 3.0857 * (10 ** 21)
+    luminosity = halpha_flux * 4 * math.pi * (d ** 2)
+    return luminosity * 7.9 * (10 ** -42)

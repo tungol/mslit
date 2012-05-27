@@ -113,7 +113,7 @@ def make_data_table(galaxy):
 
 
 def make_flux_table(galaxy):
-    sort = ['NII1', 'NII2', 'OII', 'OIII1', 'OIII2', 'OIII3', 'SII1', 'SII2',
+    order = ['NII1', 'NII2', 'OII', 'OIII1', 'OIII2', 'OIII3', 'SII1', 'SII2',
             'halpha', 'hbeta', 'hgamma']
     lines = LINES.keys()
     lines.sort()
@@ -121,7 +121,7 @@ def make_flux_table(galaxy):
         unused = [numpy.isnan(spec.fluxes[item]) for spec in galaxy.spectra]
         if False not in unused:
             lines.remove(item)
-    keys = [item for item in sort if item in lines]
+    keys = [item for item in order if item in lines]
     values = [LOOKUP[item] for item in lines]
     string = make_tabular((galaxy.spectra,), keys, values, 'Number',
                           arrange_spectra, make_table)
