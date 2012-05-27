@@ -63,7 +63,7 @@ def get_measurements(name):
 
 
 def get_num(line):
-    """Return the number of the spectrum, given it's header line."""
+    """Return the number of the region, given it's header line."""
     start = line.find('[') + 1
     return int(line[start:start + 3])
 
@@ -77,8 +77,8 @@ def is_labels(line):
     return False
 
 
-def is_spectra_head(line):
-    """Return true if a line is a spectrum header line. Test this by testing
+def is_region_head(line):
+    """Return true if a line is a region header line. Test this by testing
        if it begins with the abbreviation for a month."""
     if line[:3] in ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
                     'Sep', 'Oct', 'Nov', 'Dec'):
@@ -95,11 +95,11 @@ def parse_line(line):
 def parse_log(raw):
     """Parse raw lines from a splot log file and return a list of all the
        measurements found."""
-    length = max([get_num(line) for line in raw if is_spectra_head(line)])
+    length = max([get_num(line) for line in raw if is_region_head(line)])
     current = None
     measurements = [[] for i in range(length + 1)]
     for line in raw:
-        if is_spectra_head(line):
+        if is_region_head(line):
             current = get_num(line)
         elif line.strip() != '' and not is_labels(line):
             measurements[current].append(parse_line(line))
@@ -139,7 +139,7 @@ def id_lines(region, lines):
 
 ## Useful classes ##
 
-class SpectrumClass:
+class RegionClass:
     
     def __init__(self, number, fluxes, centers=None):
         self.number = number
@@ -176,11 +176,11 @@ class GalaxyClass:
     
     def __init__(self, name, data=None):
         self.num = name
-        self.spectra = []
+        self.regions = []
         self.fit = None
         self.grad = None
         self.metal = None
-        self.regions = None
+        self.region_number = None
         if data:
             self.name = data['name']
             self.distance = data['distance'] # in kpc
@@ -195,7 +195,7 @@ class GalaxyClass:
                 self.center = data['center']
     
     def fit_OH(self):
-        lsqout = fit_OH(self.spectra, self.r25)
+        lsqout = fit_OH(self.regions, self.r25)
         self.fit = lsqout
         self.grad = lsqout[0][0]
         # standard metallicity is the metallicity at r = 0.4
@@ -206,19 +206,19 @@ class GalaxyClass:
         graph_sfr(self)
         graph_sfr_metals(self)
         # go backwards so that indexing is kept as items are deleted
-        for spectrum in self.spectra[::-1]:
-            if numpy.isnan(spectrum.fluxes['halpha']):
-                del self.spectra[spectrum.number]
+        for region in self.regions[::-1]:
+            if numpy.isnan(region.fluxes['halpha']):
+                del self.regions[region.number]
         count = 1
-        for spectrum in self.spectra:
-            spectrum.printnumber = count
+        for region in self.regions:
+            region.printnumber = count
             count += 1
         make_flux_table(self)
         make_data_table(self)
     
     def run(self):
         measurements = get_measurements(self.num)
-        self.regions = len([r for r in measurements if r != []])
+        self.region_number = len([r for r in measurements if r != []])
         lines = LINES.copy()
         for key, value in lines.items():
             lines.update({key: (value * (self.redshift + 1))})
@@ -227,12 +227,12 @@ class GalaxyClass:
         groups = [collate_lines(region) for region in measurements]
         data = get(self.num, 'positions')
         for i, (fluxes, centers) in enumerate(groups):
-            spectrum = SpectrumClass(i, fluxes, centers)
-            spectrum.distance = self.distance
-            spectrum.position = '%s %s' % (data[i]['ra'], data[i]['dec'])
-            spectrum.center = self.center
-            spectrum.calculate()
-            self.spectra.append(spectrum)
+            region = RegionClass(i, fluxes, centers)
+            region.distance = self.distance
+            region.position = '%s %s' % (data[i]['ra'], data[i]['dec'])
+            region.center = self.center
+            region.calculate()
+            self.regions.append(region)
     
 
 ## Functions for reading in tables of data ##
@@ -254,12 +254,12 @@ def process_galaxies(fn, galaxydict):
             (r, hbeta, r2, r3) = [float(item) for item in line.split('\t')]
             # values I got were divided by hbeta
             data = {'hbeta': hbeta, 'OII': r2 * hbeta, 'OIII1': r3 * hbeta}
-            spectrum = SpectrumClass(number, data)
-            spectrum.r23 = r2 + r3
-            spectrum.rdistance = current.r25 * r
-            spectrum.distance = current.distance
-            spectrum.calculate_OH(disambig=False)
-            current.spectra.append(spectrum)
+            region = RegionClass(number, data)
+            region.r23 = r2 + r3
+            region.rdistance = current.r25 * r
+            region.distance = current.distance
+            region.calculate_OH(disambig=False)
+            current.regions.append(region)
             number += 1
 
 
@@ -270,7 +270,7 @@ def get_other():
     for fn in files:
         process_galaxies(fn, galaxydict)
     for galaxy in galaxydict.values():
-        galaxy.regions = len(galaxy.spectra)
+        galaxy.region_number = len(galaxy.regions)
     return galaxydict.values()
 
 
@@ -353,7 +353,7 @@ def correct_extinction(R_obv, fluxes, centers):
 
 
 def calculate_OH(r23, branch=None):
-    """ Calculate metalicity of the spectrum """
+    """ Calculate metalicity of the region """
     # uses conversion given by nagao 2006
     b0 = 1.2299 - math.log10(r23)
     b1 = -4.1926
@@ -383,12 +383,12 @@ def calculate_r23(fluxes):
     return r23
 
 
-def fit_OH(spectra, r25):
+def fit_OH(regions, r25):
     # inital guess: flat and solar metallicity
     slope = 0
     intercept = 8.6
-    x = [s.rdistance for s in spectra]
-    y = [s.OH for s in spectra]
+    x = [s.rdistance for s in regions]
+    y = [s.OH for s in regions]
     remove_nan(x, y)
     x = numpy.array(x)
     y = numpy.array(y)

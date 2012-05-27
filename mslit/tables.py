@@ -57,17 +57,17 @@ def make_multitable(galaxies, keys, values, (classes, titles), command):
     return string
 
 
-def arrange_spectra(spectra, keys):
+def arrange_regions(regions, keys):
     string = ['\\midrule\n']
-    for spectrum in spectra:
-        string.append(' %s' % spectrum)
-        if spectrum.corrected != True:
+    for region in regions:
+        string.append(' %s' % region)
+        if region.corrected != True:
             string.append('$^a$')
         for item in keys:
-            if item in spectrum.fluxes:
-                value = spectrum.fluxes[item]
+            if item in region.fluxes:
+                value = region.fluxes[item]
             else:
-                value = spectrum.__dict__[item]
+                value = region.__dict__[item]
             string.append(' & %s' % sigfigs_format(value, 2))
         string.append(' \\\\\n')
     return string
@@ -79,7 +79,7 @@ def arrange_galaxies(items, keys):
         string.append(' %s ' % item.name)
         for key in keys:
             value = item.__dict__[key]
-            if type(value) == str or key == 'regions':
+            if type(value) == str or key == 'region_number':
                 value = str(value)
             else:
                 value = sigfigs_format(value, 3)
@@ -106,8 +106,8 @@ def arrange_group(data, keys):
 def make_data_table(galaxy):
     keys = ['rdistance', 'OH', 'SFR']
     values = [LOOKUP[key] for key in keys]
-    string = make_tabular((galaxy.spectra,), keys, values, 'Number',
-                          arrange_spectra, make_table)
+    string = make_tabular((galaxy.regions,), keys, values, 'Number',
+                          arrange_regions, make_table)
     with open('tables/%s.tex' % galaxy.num, 'w') as f:
         f.write(string)
 
@@ -118,19 +118,19 @@ def make_flux_table(galaxy):
     lines = LINES.keys()
     lines.sort()
     for item in lines[:]:
-        unused = [numpy.isnan(spec.fluxes[item]) for spec in galaxy.spectra]
+        unused = [numpy.isnan(spec.fluxes[item]) for spec in galaxy.regions]
         if False not in unused:
             lines.remove(item)
     keys = [item for item in order if item in lines]
     values = [LOOKUP[item] for item in lines]
-    string = make_tabular((galaxy.spectra,), keys, values, 'Number',
-                          arrange_spectra, make_table)
+    string = make_tabular((galaxy.regions,), keys, values, 'Number',
+                          arrange_regions, make_table)
     with open('tables/%sflux.tex' % galaxy.num, 'w') as f:
         f.write(string)
 
 
 def make_comparison_table(galaxies, other):
-    keys = ['grad', 'metal', 'type', 'bar', 'ring', 'env', 'regions']
+    keys = ['grad', 'metal', 'type', 'bar', 'ring', 'env', 'region_number']
     values = ['Gradient (dex/R$_{25}$)', 'Metalicity at 0.4R$_{25}$',
               'Hubble Type', 'Bar', 'Ring', 'Environment', 'Number of Regions']
     string = make_tabular((galaxies, other), keys, values, 'Name',

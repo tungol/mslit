@@ -34,11 +34,11 @@ def add_solar_metallicity(axes):
 def plot(galaxy_sets, axes, colors, xkey, ykey, only_corrected=False):
     for group, color in zip(galaxy_sets, colors):
         for galaxy in group:
-            spectra = galaxy.spectra
+            regions = galaxy.regions
             if only_corrected:
-                spectra = [s for s in spectra if s.corrected]
-            x = [s.__dict__[xkey] for s in spectra]
-            y = [s.__dict__[ykey] for s in spectra]
+                regions = [s for s in regions if s.corrected]
+            x = [s.__dict__[xkey] for s in regions]
+            y = [s.__dict__[ykey] for s in regions]
             remove_nan(x, y)
             if xkey is 'rdistance':
                 x = numpy.array(x)
