@@ -8,8 +8,6 @@ Single galaxy graphs: graph_metallicity, graph_sfr, graph_sfr_metals
 Mutiple galaxy graphs: compare, compare_basic
 """
 
-# FIXME: data is different (!!) in output graphs, something deeply wrong
-
 import matplotlib
 from matplotlib.backends.backend_ps import FigureCanvasPS as FigureCanvas
 import numpy

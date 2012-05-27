@@ -300,6 +300,7 @@ class GalaxyClass:
             spectrum.position = '%s %s' % (data[i]['ra'], data[i]['dec'])
             spectrum.center = self.center
             spectrum.calculate()
+            self.spectra.append(spectrum)
     
 
 ## Functions for reading in tables of data ##
