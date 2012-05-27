@@ -189,6 +189,27 @@ def get_measurements(name):
     return collated
 
 
+def collate_lines(region):
+    fluxes = {}
+    centers = {}
+    for name in LINES:
+        sources = [measurement for measurement in region
+                   if measurement['name'] == name]
+        line = {}
+        for item in LOG_FORMAT:
+            line.update({item: avg(*[s[item] for s in sources])})
+        fluxes.update({name: line['flux']})
+        centers.update({name: line['center']})
+    return fluxes, centers
+
+
+def id_lines(region, lines):
+    for measurement in region:
+        badness = dict([(abs(measurement['center'] - lines[name]), name)
+                        for name in lines])
+        measurement.update({'name': badness[min(badness.keys())]})
+
+
 ## Useful classes ##
 
 class SpectrumClass:
@@ -196,7 +217,7 @@ class SpectrumClass:
     def __init__(self, number, fluxes, centers=None):
         self.number = number
         self.fluxes = fluxes
-        self.centers = centers            
+        self.centers = centers
     
     def __repr__(self):
         return str(self.printnumber)
@@ -223,27 +244,6 @@ class SpectrumClass:
             self.fluxes = correct_extinction(R_obv, self.fluxes, self.centers)
             self.corrected = True
     
-
-def collate_lines(region):
-    fluxes = {}
-    centers = {}
-    for name in LINES:
-        sources = [measurement for measurement in region
-                   if measurement['name'] == name]
-        line = {}
-        for item in LOG_FORMAT:
-            line.update({item: avg(*[s[item] for s in sources])})
-        fluxes.update({name: line['flux']})
-        centers.update({name: line['center']})
-    return fluxes, centers
-
-
-def id_lines(region, lines):
-    for measurement in region:
-        badness = dict([(abs(measurement['center'] - lines[name]), name)
-                        for name in lines])
-        measurement.update({'name': badness[min(badness.keys())]})
-
 
 class GalaxyClass:
     
@@ -278,9 +278,14 @@ class GalaxyClass:
         graph_metalicity(self)
         graph_sfr(self)
         graph_sfr_metals(self)
-        spectra = self.spectra
-        for i, spectrum in enumerate(spectra):
-            spectrum.printnumber = i + 1
+        # go backwards so that indexing is kept as items are deleted
+        for spectrum in self.spectra[::-1]:
+            if numpy.isnan(spectrum.fluxes['halpha']):
+                del self.spectra[spectrum.number]
+        count = 1
+        for spectrum in self.spectra:
+            spectrum.printnumber = count
+            count += 1
         make_flux_table(self, LINES.keys(), LOOKUP)
         make_data_table(self, LOOKUP)
     
