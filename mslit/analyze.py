@@ -14,7 +14,7 @@ from .graphs import graph_metalicity, graph_sfr, graph_sfr_metals
 from .graphs import compare_basic, compare
 from .tables import make_flux_table, make_data_table, make_comparison_table
 from .tables import make_group_comparison_table
-from .const import LINES, GROUPS, LOOKUP, LOG_FORMAT
+from .const import LINES, GROUPS, LOG_FORMAT
 
 
 ## Some Math ##
@@ -286,8 +286,8 @@ class GalaxyClass:
         for spectrum in self.spectra:
             spectrum.printnumber = count
             count += 1
-        make_flux_table(self, LINES.keys(), LOOKUP)
-        make_data_table(self, LOOKUP)
+        make_flux_table(self)
+        make_data_table(self)
     
     def run(self):
         measurements = get_measurements(self.num)

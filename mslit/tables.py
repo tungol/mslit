@@ -9,7 +9,7 @@ tables.py - functions for outputting LaTeX tables of data
 
 import numpy
 from .misc import remove_nan, avg, std
-from .const import GROUPS
+from .const import GROUPS, LOOKUP, LINES
 
 def sigfigs_format(x, n):
     if numpy.isnan(x):
@@ -27,33 +27,33 @@ def sigfigs_format(x, n):
 
 ## Make some tables ##
 
-def make_tabular(group, lookup, extra, inner_command, outer_command):
-    string = ['\\begin{tabular}{ *{%s}{c}}\n' % (len(lookup.keys()) + 1)]
-    string += outer_command(group, lookup, extra, inner_command)
+def make_tabular(group, keys, values, extra, inner_command, outer_command):
+    string = ['\\begin{tabular}{ *{%s}{c}}\n' % (len(keys) + 1)]
+    string += outer_command(group, keys, values, extra, inner_command)
     string.append('\\end{tabular}\n')
     return ''.join(string)
 
 
-def make_table(groups, lookup, name, command):
+def make_table(groups, keys, values, name, command):
     string = ['\\toprule\n %s ' % name]
-    string += ['& %s ' % lookup[item] for item in lookup.keys()]
+    string += ['& %s ' % item for item in values]
     string.append('\\\\\n')
     for group in groups:
-        string += command(group, lookup.keys())
+        string += command(group, keys)
     string.append('\\bottomrule\n')
     return string
 
 
-def make_multitable(galaxies, lookup, (classes, titles), command):
+def make_multitable(galaxies, keys, values, (classes, titles), command):
     string = []
-    for key in titles:
-        v = dict([(header, {}) for header in classes[key]])
-        for header, group in classes[key].items():
-            for value in ('grad', 'metal'):
-                values = [g.__dict__[value] for g in galaxies
-                          if g.__dict__[key] in group]
-                v[header].update({value: values})
-        string += make_table((v,), lookup, titles[key], command)
+    for title in titles:
+        v = dict([(header, {}) for header in classes[title]])
+        for header, group in classes[title].items():
+            for item in ('grad', 'metal'):
+                items = [g.__dict__[item] for g in galaxies
+                          if g.__dict__[title] in group]
+                v[header].update({item: items})
+        string += make_table((v,), keys, values, titles[title], command)
     return string
 
 
@@ -103,51 +103,50 @@ def arrange_group(data, keys):
     return string
 
 
-def make_data_table(galaxy, lookup):
-    values = ['rdistance', 'OH', 'SFR']
-    lookup = dict([(item, lookup[item]) for item in values])
-    string = make_tabular((galaxy.spectra,), lookup, 'Number', arrange_spectra,
-                          make_table)
+def make_data_table(galaxy):
+    keys = ['rdistance', 'OH', 'SFR']
+    values = [LOOKUP[key] for key in keys]
+    string = make_tabular((galaxy.spectra,), keys, values, 'Number',
+                          arrange_spectra, make_table)
     with open('tables/%s.tex' % galaxy.num, 'w') as f:
         f.write(string)
 
 
-def make_flux_table(galaxy, lines, lookup):
+def make_flux_table(galaxy):
+    sort = ['NII1', 'NII2', 'OII', 'OIII1', 'OIII2', 'OIII3', 'SII1', 'SII2',
+            'halpha', 'hbeta', 'hgamma']
+    lines = LINES.keys()
     lines.sort()
     for item in lines[:]:
         unused = [numpy.isnan(spec.fluxes[item]) for spec in galaxy.spectra]
         if False not in unused:
             lines.remove(item)
-    lookup = dict([(item, lookup[item]) for item in lines])
-    string = make_tabular((galaxy.spectra,), lookup, 'Number', arrange_spectra,
-                          make_table)
+    keys = [item for item in sort if item in lines]
+    values = [LOOKUP[item] for item in lines]
+    string = make_tabular((galaxy.spectra,), keys, values, 'Number',
+                          arrange_spectra, make_table)
     with open('tables/%sflux.tex' % galaxy.num, 'w') as f:
         f.write(string)
 
 
 def make_comparison_table(galaxies, other):
-    lookup = {'grad': 'Gradient (dex/R$_{25}$)',
-              'metal': 'Metalicity at 0.4R$_{25}$',
-              'type': 'Hubble Type',
-              'bar': 'Bar',
-              'ring': 'Ring',
-              'env': 'Environment',
-              'regions': 'Number of Regions'}
-    string = make_tabular((galaxies, other), lookup, 'Name', arrange_galaxies,
-                          make_table)
+    keys = ['grad', 'metal', 'type', 'bar', 'ring', 'env', 'regions']
+    values = ['Gradient (dex/R$_{25}$)', 'Metalicity at 0.4R$_{25}$',
+              'Hubble Type', 'Bar', 'Ring', 'Environment', 'Number of Regions']
+    string = make_tabular((galaxies, other), keys, values, 'Name',
+                          arrange_galaxies, make_table)
     with open('tables/comparison.tex', 'w') as f:
         f.write(''.join(string))
 
 
 def make_group_comparison_table(galaxies, other):
     galaxies += other
-    lookup = {'grad': 'Gradient (dex/R$_{25}$)',
-              'grad_std': 'Standard Deviation',
-              'metal': 'Metalicity at 0.4R$_{25}$',
-              'metal_std': 'Standard Deviation'}
+    keys = ['grad', 'grad_std', 'metal', 'metal_std']
+    values = ['Gradient (dex/R$_{25}$)', 'Standard Deviation',
+              'Metalicity at 0.4R$_{25}$', 'Standard Deviation']
     titles = {'env': 'Environment', 'ring': 'Ring', 'bar': 'Bar',
               'type': 'Hubble Type'}
-    string = make_tabular(galaxies, lookup, (GROUPS, titles), arrange_group,
-                           make_multitable)
+    string = make_tabular(galaxies, keys, values, (GROUPS, titles),
+                          arrange_group, make_multitable)
     with open('tables/comparison2.tex', 'w') as f:
         f.write(''.join(string))
