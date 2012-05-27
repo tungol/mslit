@@ -140,16 +140,23 @@ def id_lines(region, lines):
 ## Useful classes ##
 
 class RegionClass:
+    """A class for data related to individual regions."""
     
     def __init__(self, number, fluxes, centers=None):
-        self.number = number
-        self.fluxes = fluxes
-        self.centers = centers
-    
-    def __repr__(self):
-        return str(self.printnumber)
+        self.number = number     # number of the region
+        self.fluxes = fluxes     # list of averaged flux measurements
+        self.centers = centers   # list of averaged wavelength centers
+        self.corrected = False  # has extinction correction been applied?
+        self.distance = None    # distance to galaxy
+        self.center = None      # RA, Dec of galactic center
+        self.OH = None      # O/H metallicity
+        self.SFR = None        # Star formation rate
+        self.rdistance = None   # galactocentric radius
+        self.position = None        # RA, Dec of the region
+        self.r23 = None     # r23 metallicity
     
     def calculate(self):
+        """Perform astrophysical calculations related to the region."""
         self.correct_extinction()
         self.rdistance = calculate_radial_distance(self.position, self.center,
                                                    self.distance)
@@ -158,21 +165,24 @@ class RegionClass:
         self.SFR = calculate_sfr(self.distance, self.fluxes['halpha'])
     
     def calculate_OH(self, disambig=True):
+        """Calculate O/H metallicity for a region, optionally checking which
+           branch of the solution it is on."""
         if disambig:
             branch = self.fluxes['OIII2'] / self.fluxes['OII']
             self.OH = calculate_OH(self.r23, branch)
         self.OH = calculate_OH(self.r23)
     
     def correct_extinction(self):
+        """If possible, correct for all the regions flux measurements for
+           extinction."""
         R_obv = self.fluxes['halpha'] / self.fluxes['hbeta']
-        if numpy.isnan(R_obv):
-            self.corrected = False
-        else:
+        if not numpy.isnan(R_obv):
             self.fluxes = correct_extinction(R_obv, self.fluxes, self.centers)
             self.corrected = True
     
 
 class GalaxyClass:
+    """A class for information related to a galaxy of multiple regions."""
     
     def __init__(self, name, data=None):
         self.num = name

@@ -60,7 +60,7 @@ def make_multitable(galaxies, keys, values, (classes, titles), command):
 def arrange_regions(regions, keys):
     string = ['\\midrule\n']
     for region in regions:
-        string.append(' %s' % region)
+        string.append(' %s' % region.printnumber)
         if region.corrected != True:
             string.append('$^a$')
         for item in keys:
