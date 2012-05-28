@@ -2,10 +2,9 @@
 # encoding: utf-8
 
 """
-const.py - Some useful values
+Some useful values.
 
-This file contains some dictionary of useful values, all used during
-analyzing data.
+This file contains some useful values, all used during analyzing data.
 """
 
 LOG_FORMAT = ('center', 'cont', 'flux', 'eqw', 'core', 'gfwhm', 'lfwhm')

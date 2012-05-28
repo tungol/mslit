@@ -1,39 +1,24 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import os
+"""
+Change sky subtraction levels for a region by an increment.
+"""
+
 from argparse import ArgumentParser
-from mslit.data import get, write
-from mslit.sky import generate_sky
-
-# call signature: modify_sky night name number op value
-# example: ./modify_sky.py n3 ngc3169 15 + 0.5
-# which means to increase the scaling of the sky subtracted from
-# spectrum 15 of ngc3169 from night three by 0.5
-
-
-def modify_sky(path, name, number, op, value):
-    os.chdir(path)
-    number = int(number)
-    value = float(value)
-    sky_levels = get(name, 'sky')
-    sky_level = sky_levels[number]
-    if op == '+':
-        new_sky_level = sky_level + value
-    elif op == '-':
-        new_sky_level = sky_level - value
-    sky_levels[number] = new_sky_level
-    write(name, 'sky', sky_levels)
-    generate_sky(name, number, new_sky_level)
+from mslit import modify_sky
 
 
 def parse_args():
-    parser = ArgumentParser(description='')
-    parser.add_argument('path')
-    parser.add_argument('name')
-    parser.add_argument('number')
-    parser.add_argument('op')
-    parser.add_argument('value')
+    """Parse arguments form the command line."""
+    parser = ArgumentParser(description='Change the sky subtraction level for '
+                            'a region by an increment.')
+    parser.add_argument('path', help="path to the set of files")
+    parser.add_argument('name', help='name of the galaxy')
+    parser.add_argument('number', help='number of the region to act on',
+                        type='int')
+    parser.add_argument('op', help='operation to preform', choices=['+', '-'])
+    parser.add_argument('value', help='increment', type='float')
     args = vars(parser.parse_args())
     return (args['path'], args['name'], args['number'], args['op'],
             args['value'])

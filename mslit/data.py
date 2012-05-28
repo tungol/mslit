@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 """
-data.py - contains functions for working with metadata about the observations
+Functions for working with metadata about the observations.
 
 low level: get, get_groups, get_mslit_data, write
 manipulation functions: get_group, get_object_spectra, get_sky_spectra

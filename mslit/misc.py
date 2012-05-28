@@ -2,14 +2,15 @@
 # encoding: utf-8
 
 '''
-misc.py - contains some basic math functions and some convienience
-          functions.
+Some basic math functions and some convienience functions.
 
-math functions: avg, rms, std
-convienience functions: remove_nan, zerocount
+math functions: avg, rms, threshold_round, std
+convienience functions: base, list_convert, remove_nan, zerocount
 '''
 
+import cmath
 import math
+import os
 import numpy
 
 ## Some Math ##
@@ -22,6 +23,31 @@ def avg(*args):
     if len(float_nums) == 0:
         return float('NaN')
     return sum(float_nums) / len(float_nums)
+
+
+def cubic_solutions(a, alpha, beta):
+    """Calculate the solutions to a cubic function with given simplified
+       parameters."""
+    w1 = -.5 + .5 * math.sqrt(3) * 1j
+    w2 = -.5 - .5 * math.sqrt(3) * 1j
+    solution1 = -(1.0 / 3) * (a + alpha + beta)
+    solution2 = -(1.0 / 3) * (a + w2 * alpha + w1 * beta)
+    solution3 = -(1.0 / 3) * (a + w1 * alpha + w2 * beta)
+    return [solution1, solution2, solution3]
+
+
+def cubic_solve(b0, b1, b2, b3):
+    """Calculate the solutions to a cubic function with given parameters."""
+    a = b2 / b3
+    b = b1 / b3
+    c = (b0) / b3
+    m = 2 * (a ** 3) - 9 * a * b + 27 * c
+    k = (a ** 2) - 3 * b
+    n = (m ** 2) - 4 * (k ** 3)
+    alpha = (.5 * (m + cmath.sqrt(n))) ** (1.0 / 3)
+    beta = (.5 * (m - cmath.sqrt(n))) ** (1.0 / 3)
+    return cubic_solutions(a, alpha, beta)
+
 
 
 def rms(*args):
@@ -57,7 +83,19 @@ def base(location, values, step):
         else:
             break
     return step
-       
+
+
+def list_convert(pylist):
+    """Convert python lists to the strings that IRAF accepts as lists."""
+    stringlist = pylist[0]
+    for item in pylist[1:]:
+        stringlist += ', %s' % item
+    return stringlist
+
+
+def namefix(name):
+    """Rename files to get rid of the silly naming scheme that apsum uses."""
+    os.rename('%s.0001.fits' % name, '%s.fits' % name)
 
 
 def remove_nan(*lists):

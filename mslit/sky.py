@@ -2,24 +2,78 @@
 # encoding: utf-8
 
 """
-sky.py - contains functions related to sky subtraction
+Functions related to sky subtraction.
 
+high level iraf wrappers: combine_sky_spectra, setairmass_galaxy, skies
+                          sky_subtract_galaxy
 low level FITS functions: find_line_peak, find_lines, get_continuum,
                           get_peak_cont, get_wavelength_location
 functions for solving: get_std_sky, guess_scaling, try_sky
-high level functions: generate_sky, sky_subtract
+high level functions: generate_sky, modify_sky, sky_subtract
 """
 
 import os
 import subprocess
 import pyfits
 import scipy.optimize
-from .misc import rms, std, avg, zerocount, base
-from .iraf import sarith
+from .data import get, get_object_spectra, get_sky_spectra, write
+from .iraf_low import sarith, scombine, setairmass
+from .misc import avg, base, list_convert, rms, std, zerocount
 
 
 # define some atmospheric spectral lines
 LINES = [5893, 5578, 6301, 6365]
+
+
+## High level IRAF wrappers ##
+
+def combine_sky_spectra(name):
+    """Convert all sky spectra to the same scaling, then combine them."""
+    sky_list = get_sky_spectra(name)
+    sizes = get(name, 'sizes')
+    scaled = []
+    for spectra in sky_list:
+        scale = sizes[spectra] # scale by the number of pixels arcoss
+        num = zerocount(spectra)
+        sarith('%s/disp/%s.1d' % (name, num), '/', scale,
+            '%s/sky/%s.scaled' % (name, num))
+        scaled.append('%s/sky/%s.scaled' % (name, num))
+    if os.path.isfile('%s/sky.1d' % name):
+        os.remove('%s/sky.1d' % name)
+    scombine(list_convert(scaled), '%s/sky.1d' % name)
+
+
+def setairmass_galaxy(name):
+    """Set effective air mass for each object spectra in a galaxy."""
+    spectra = get_object_spectra(name)
+    for spectrum in spectra:
+        num = zerocount(spectrum)
+        setairmass('%s/sub/%s.1d' % (name, num))
+
+def skies(name):
+    """Create a combined sky spectrum, perform sky subtraction, and set
+       airmass metadata """
+    if not os.path.isdir('%s/sky' % name):
+        os.mkdir('%s/sky' % name)
+    combine_sky_spectra(name)
+    if not os.path.isdir('%s/sub' % name):
+        os.mkdir('%s/sub' % name)
+    sky_subtract_galaxy(name)
+    setairmass_galaxy(name)
+
+
+def sky_subtract_galaxy(name):
+    """Remove sky lines from each spectra in a galaxy, making a guess at an
+       appropriate scaling level if none is stored already."""
+    spectra = get_object_spectra(name)
+    sky_levels = get(name, 'sky')
+    for spectrum in spectra:
+        sky_level = sky_levels[spectrum]
+        if not sky_level:
+            sky_level = sky_subtract(name, spectrum)
+        generate_sky(name, spectrum, sky_level)
+    write(name, 'sky', sky_levels)
+
 
 ## Functions for manipulating the fits data at a low level ##
 
@@ -150,6 +204,19 @@ def generate_sky(name, spectrum, sky_level):
     sarith(in_sky, '*', sky_level, out_sky)
     sarith(in_fn, '-', out_sky, out_fn)
 
+
+def modify_sky(path, name, number, op, value):
+    """Change the level of sky subtraction for a region by an increment."""
+    os.chdir(path)
+    sky_levels = get(name, 'sky')
+    sky_level = sky_levels[number]
+    if op == '+':
+        new_sky_level = sky_level + value
+    elif op == '-':
+        new_sky_level = sky_level - value
+    sky_levels[number] = new_sky_level
+    write(name, 'sky', sky_levels)
+    generate_sky(name, number, new_sky_level)
 
 def sky_subtract(name, spectrum):
     """Optimize the get_std_sky function to determine the best level of sky

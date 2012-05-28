@@ -2,14 +2,13 @@
 # encoding: utf-8
 
 """
-analyze.py - Functions for preforming analysis of measured data.
+Functions for preforming analysis of measured data.
 
 Primary entry point is the analyze function.
 
 Classes: GalaxyClass, RegionClass
 
 Functions:
-Math functions: cubic_solutions, cubic_solve
 Parsing splot logs: get_measurements, get_num, is_labels, is_region_head,
                     parse_line, parse_log
 Processing data: collate_lines, id_lines
@@ -21,19 +20,18 @@ other calculations: calculate_radial_distance, calculate_sfr
 """
 
 from __future__ import with_statement
-import os
 import math
-import cmath
+import os
+import coords
 import numpy
 import scipy.optimize
-import coords
+from .const import GROUPS, LINES, LOG_FORMAT
 from .data import get, get_groups
-from .misc import remove_nan, avg
+from .graphs import compare, compare_basic
 from .graphs import graph_metalicity, graph_sfr, graph_sfr_metals
-from .graphs import compare_basic, compare
-from .tables import make_flux_table, make_data_table, make_comparison_table
+from .misc import avg, cubic_solve, remove_nan
+from .tables import make_comparison_table, make_data_table, make_flux_table
 from .tables import make_group_comparison_table
-from .const import LINES, GROUPS, LOG_FORMAT
 
 
 def analyze():
@@ -168,33 +166,6 @@ class RegionClass:
             self.corrected = True
     
 
-## Some Math ##
-
-
-def cubic_solutions(a, alpha, beta):
-    """Calculate the solutions to a cubic function with given simplified
-       parameters."""
-    w1 = -.5 + .5 * math.sqrt(3) * 1j
-    w2 = -.5 - .5 * math.sqrt(3) * 1j
-    solution1 = -(1.0 / 3) * (a + alpha + beta)
-    solution2 = -(1.0 / 3) * (a + w2 * alpha + w1 * beta)
-    solution3 = -(1.0 / 3) * (a + w1 * alpha + w2 * beta)
-    return [solution1, solution2, solution3]
-
-
-def cubic_solve(b0, b1, b2, b3):
-    """Calculate the solutions to a cubic function with given parameters."""
-    a = b2 / b3
-    b = b1 / b3
-    c = (b0) / b3
-    m = 2 * (a ** 3) - 9 * a * b + 27 * c
-    k = (a ** 2) - 3 * b
-    n = (m ** 2) - 4 * (k ** 3)
-    alpha = (.5 * (m + cmath.sqrt(n))) ** (1.0 / 3)
-    beta = (.5 * (m - cmath.sqrt(n))) ** (1.0 / 3)
-    return cubic_solutions(a, alpha, beta)
-
-
 ## Log parsing functions ##
 
 
@@ -280,8 +251,8 @@ def collate_lines(region):
 
 
 def id_lines(region, lines):
-    """For all the measurements in a region, determine which spectral line they
-       are closest to in wavelength."""
+    """For all the measurements in a region, determine which spectral line
+       they are closest to in wavelength."""
     for measurement in region:
         badness = dict([(abs(measurement['center'] - lines[name]), name)
                         for name in lines])

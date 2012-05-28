@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 """
-graphs.py - functions for oupting graphs
+Functions for oupting graphs.
 
 Generic plotting functions: add_solar_metallicity, plot
 Single galaxy graphs: graph_metallicity, graph_sfr, graph_sfr_metals

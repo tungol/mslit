@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 """
-tables.py - functions for outputting LaTeX tables of data
+Functions for outputting LaTeX tables of data.
 
 Functions:
 Formatting: sigfigs_format
@@ -13,8 +13,8 @@ Table details: arrange_galaxies, arrange_group, arrange_regions
 """
 
 import numpy
-from .misc import remove_nan, avg, std
-from .const import GROUPS, LOOKUP, LINES
+from .const import GROUPS, LINES, LOOKUP
+from .misc import avg, remove_nan, std
 
 
 ## Formatting ##

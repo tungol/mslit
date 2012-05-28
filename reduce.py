@@ -1,15 +1,29 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import os
+"""
+Reduce multi-slit spectroscopic data.
+
+Commands:
+
+zeroflat: combine any zero and flat images for a night
+init: initialize a galaxy or star
+extract: extract one dimensional spectra from a galaxy or star
+disp: apply dispersion correction to a galaxy or star
+sky: perform sky subtraction for a galaxy or star
+calibrate: flux calibrate a galaxy
+analyze: produce graphs and tables of measured data
+"""
+
+
 import argparse
-from mslit.iraf import zero_flats, init_galaxy, slice_galaxy, dispcor_galaxy
-from mslit.iraf import calibrate_galaxy, skies
-from mslit.data import get_groups
-from mslit.analyze import analyze
+import os
+from mslit import analyze, calibrate_galaxy, dispcor_galaxy, get_groups
+from mslit import init_galaxy, slice_galaxy, skies, zero_flats
 
 
 def main(command, path, name):
+    """Execute commands from the command line."""
     commands = {'init': init_galaxy, 'extract': slice_galaxy,
                 'disp': dispcor_galaxy,
                 'sky': skies, 'calibrate': calibrate_galaxy}
@@ -31,6 +45,7 @@ def main(command, path, name):
 
 
 def parse_args():
+    """Parse the arguments from the command line."""
     parser = argparse.ArgumentParser(
              description='Reduce multi-slit spectroscopic data.',
              formatter_class=argparse.RawDescriptionHelpFormatter,
