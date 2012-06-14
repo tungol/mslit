@@ -96,7 +96,7 @@ def make_group_comparison_table(galaxies, other):
 ## Actual tables ##
 
 
-def make_table(groups, keys, values, name, command):
+def make_table(groups, keys, values, name, command, multi=False):
     """Return a string representing a LaTeX table.
        
        groups: iterable containing different groups of galaxies
@@ -104,15 +104,21 @@ def make_table(groups, keys, values, name, command):
        values: iterable containing the printable names corresponding to the
                keys in keys
        name: name of the first column
-       command: every item in groups will be run through this command"""
-    string = ['\\begin{tabular}{ *{%s}{c}}\n' % (len(keys) + 1)]
+       command: every item in groups will be run through this command
+       multi: optional parameter, if true, table will be used inside a
+              multitable"""
+    if multi:
+        string = []
+    else:
+        string = ['\\begin{tabular}{ *{%s}{c}}\n' % (len(keys) + 1)]
     string += ['\\toprule\n %s ' % name]
     string += ['& %s ' % item for item in values]
     string.append('\\\\\n')
     for group in groups:
         string += command(group, keys)
     string.append('\\bottomrule\n')
-    string.append('\\end{tabular}\n')
+    if not multi:
+        string.append('\\end{tabular}\n')
     return ''.join(string)
 
 
@@ -133,7 +139,7 @@ def make_multitable(galaxies, keys, values, titles, command):
                 items = [g.__dict__[item] for g in galaxies
                           if g.__dict__[title] in group]
                 v[header].update({item: items})
-        string += make_table((v,), keys, values, titles[title], command)
+        string += make_table((v,), keys, values, titles[title], command, True)
     string.append('\\end{tabular}\n')
     return ''.join(string)
 
@@ -145,7 +151,7 @@ def arrange_galaxies(items, keys):
     """Return details of a table for comparing multiple galaxies."""
     string = ['\\midrule\n']
     for item in items:
-        string.append(' %s ' % item.printname)
+        string.append(' %s ' % item.print_name)
         for key in keys:
             value = item.__dict__[key]
             if type(value) == str or key == 'region_number':

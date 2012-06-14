@@ -1,0 +1,272 @@
+Using the reduce.py
+
+The main script, reduce.py provides a number of different commands: zeroflat, 
+init, extract, disp, sky, calibrate, and analyze. In basic use, it takes two 
+arguments: a command and the path to the data. All of the commands except for 
+zeroflat and analyze can take an optional extra parameter, the --name or -n 
+parameter. This is for use in the case where you are only working on one galaxy 
+from a set. Specify the name of the galaxy you want to run this step on with 
+-n, and only that galaxy will be taken through the step. If no name is given, 
+then all galaxies in the set will be acted on.
+
+Setup
+
+To begin, prior to running any of the code, you need to setup a few files that 
+will help reduce.py know what to do. First, create a subdirectory called lists. 
+Within ./lists/ there needs to be various lists of the type that IRAF will 
+accept in IRAF's @list notation: plain text lists of files, one file name per 
+line. At a minimum, there should be a list for each of the following: the set 
+of flats, the set of zero images, the calibration star observation, the 
+comparison lamp observation, and the galaxy observations. These lists are 
+necessary even if there is only one item in the list. All lists can be 
+arbitrarily named. I named them as the objects that they represented 
+observations of, for clarity. There also needs to be a bad pixel mask, which 
+can also be named anything. The bad pixel mask I used is ./Mask.pl.
+
+You also need to create a file that tells reduce.py what galaxies take what 
+flats, zeros, etc. This file is ./input/groups.yaml. This is a YAML formatted 
+file with a list of dictionaries, one for each of the galaxy observations in 
+the set. Each dictionary need to have the following keys: galaxy, zero, flat, 
+star, mask, and lamp. The values for each of these are the names of the 
+corresponding list in ./lists/, except for mask. Galaxy, zero, and flat are 
+straightforward. Star is the calibration star, and lamp is the HeNeAr 
+comparison lamp. The value of mask is just the name of the bad pixel mask, as 
+it doesn't have a corresponding list. An example of this file is:
+
+- galaxy: ngc3169
+  zero: Zero
+  flat: Flat1
+  star: feige34
+  mask: Mask.pl
+  lamp: henear1
+
+- galaxy: ngc4725
+  zero: Zero
+  flat: Flat2
+  star: pg1708+602
+  mask: Mask.pl
+  lamp: henear2
+
+First Step: reduce.py zeroflat
+
+Now run the zeroflat command. This command will first collect all the zero 
+images and flats, combine them appropriately using zerocombine and flatcombine, 
+and then apply the bad pixel mask to the combined images using fixpix.
+
+First Step: reduce.py init
+
+The init will create a subdirectory for each galaxy and a copy of each of the 
+galaxy's images will be placed in it using imcopy. The bad pixel mask will be 
+applied to these using fixpix. Each image is run through ccdproc, applying zero 
+correction and flat fielding. Finally, all the images are combined using 
+combine and the resulting image is saved as base.fits (for example, 
+./ngc3169/base.fits).
+
+Second Step: reduce.py extract
+
+Before the extract step can be taken, two more files need to be created for 
+each galaxy. First you need to go to the output of the MSLIT run that was used 
+to generate the slits in the first place, saved as .out files in the data set 
+I used. Within the output there are multiple plate definitions, and it is 
+necessary to identify which one is the plate that your image uses. I did this 
+by using the image headers which record the angular position of the plate at 
+the time of the observation. Match this up to the position angle of one of the 
+plate definitions in the data set. From this, create a new file that begins 
+with the field headers. The first couple lines of the file should look like 
+this:
+
+ OBJ  NAME          RA  (2000)  DEC         XLO     XHI (MM) Y
+
+  70 HIIREGION  10:14:22.55 +03:29:40.4  -16.774 -15.792  -4.954 
+  68 HIIREGION  10:14:22.68 +03:29:32.5  -15.391 -14.258  -5.658 
+   4 NIGHTSKY   10:14:20.90 +03:29:14.9  -11.830 -10.320  -2.878 
+   0 SETUP      10:14:20.99 +03:28:12.7   -9.584  -9.206  -7.827    
+
+One caveat, however, is that any objects labeled in the original output 
+'CHECK STAR' must have the space removed so that they become 'CHECKSTAR'. This 
+is because the parser I wrote is very basic and simply splits the line on any 
+whitespace. If there are any other fields with spaces in them, the space must 
+also be removed from these. Save this new file as ./input/name.out, replacing 
+name with the name you are using for the galaxy. For example, 
+./input/ngc3169.out.
+
+The second file is trickier. This is a file that tells the code where on the 
+image the light that has come through the slits is. It does this by 
+specifying, in pixel coordinates, two columns and where the light begins on 
+the lowest strip of light and ends on the highest strip of light. It should 
+be saved as ./input/name-pixel.yaml, where name is replaced with the name of 
+the galaxy, as in the .out file. An example of this file is:
+
+- column: 1500
+  start: 106
+  end: 454
+
+- column: 450
+  start: 116
+  end: 458
+
+In this example, the two columns being specified are column 450 and column 
+1500. Column 1500 begins at the pixel (1500, 106) and ends at the pixel 
+(1500,454), while column 450 runs from pixel (450, 116) to pixel (450, 458). 
+These values are very tricky to get right, and this next step must be run 
+iteratively until a satisfactory version is found. Neither of these files need 
+to be created for the calibration stars, because their plates are the same as 
+the galaxy's plates, so these files can be reused.
+
+Once these files are created, reduce.py extract can be run. First this will 
+use the information from the two new files to calculate the locations of every 
+strip on the image. The .out file lists the physical size of the slits that are 
+placed over the CCD array. The highest physical value in the .out file is 
+matched to the highest pixel value in the .yaml file. A linear scaling across 
+the physical dimension of the image is assumed, whatever offset is present is 
+accounted for, and the physical dimensions given in the .out file are converted 
+into pixel coordinates. At this point, there are four pixel coordinate values 
+for every slit on the plate/strip on the image.
+
+With this information, the angle of rotation for each strip is calculated. For 
+each of the two columns, the midpoint of each strip is calculated. The 
+calculated angle is then the rotation that will move the two midpoints to the 
+same location in the physical direction.
+
+After this, the section of the rotated image to be cropped is calculated. This 
+is the calculation of two values: the upper bound and the lower bound. For the 
+upper bound, the average of the upper bounds for each column is taken. In order 
+to account for light that ends up outside of the boundary of the physical slit, 
+1.5 is added to this value. Then, the value is rounded off to the nearest 
+integer. This is fudged slightly in the favor of a wider, more inclusive strip. 
+The same procedure is used to derive the lower bound, with 1.5 subtracted from 
+the average (again, to be more inclusive). This is done by the get_sections 
+function in mslit.data and changes there can fine tune this process.
+
+All calculated values are saved to ./input/name-value.yaml, where name is the 
+name of the galaxy and value is one of angles, positions, sections, sizes, or 
+types.  The image is rotated and then cropped for each srtip using rotate and 
+imcopy, respectively. Rotated images are saved in ./name/rot and cropped imaged 
+are saved in ./name/slice. Images derived from the galaxy have names like 
+004.fits and images derived from the comparison lamp have names like 004c.fits.
+
+Now you need to check how well the rotation and cropping matches up to the 
+actual image. I found it useful to get the cropping section for each strip and 
+then display the matching rotated image in ds9. Look at whether or not the 
+strip is level across it's whole length and whether or not the strip is 
+contained within the section to be cropped. I found it easiest to adjust the 
+values in the .yaml file until all the strips were level first, for example by 
+raising or lowering one column's values (or one corner's values) relative to 
+the other. Next I raised or lowered the all four values uniformly to get the 
+offset right. This process takes many iterations to get right, and is one of 
+the slower stages of data reduction using this codebase.
+
+Third Step: reduce.py disp
+
+Before the dispersion correction can be preformed, you need to find the 
+dispersion functions using identify and reidentify. Do this as you normally 
+would, except for making sure to run these functions from the base directory. 
+This is to ensure that the identifications are saved in ./database and not, 
+e.g., ./ngc3169/database.
+
+Once you are done with identify and reidentify, run reduce.py disp. This will 
+apply the dispersion functions you found, using dispcor, saving the results in 
+./name/disp.
+
+Fourth Step: reduce.py sky
+
+For sky subtraction, the information in the .out files will be used to 
+determine which spectra are sky spectra. For observation of the calibration 
+stars, however, this will not work. You need to tell mslitreduce.py which 
+spectrum contains the information from the calibration star. Do this by adding 
+a 'star_num' field to each group in goups.yaml. For example:
+
+- galaxy: ngc3169
+  zero: Zero
+  flat: Flat1
+  star: feige34
+  star_num: 10
+  mask: Mask.pl
+  lamp: henear1
+
+- galaxy: ngc4725
+  zero: Zero
+  flat: Flat2
+  star: pg1708+602
+  star_num: 20
+  mask: Mask.pl
+  lamp: henear2
+
+Now run reduce.py sky. This will first create a combined sky spectrum for each 
+galaxy; scaling each sky spectrum by the physical width of the slit on the 
+plate with sarith, and combining them with scombine. Intermediate stages are 
+saved in ./name/sky and the end result is saved as ./name/sky.1d.fits. Scaling 
+levels for sky subtraction are kept in ./input/name-sky.yaml. If this file 
+exists already, the levels in there will be used, otherwise a guess at the 
+appropriate level of sky subtraction is made and applied using sarith. See the 
+data.sky file for details of how the guess is made. The end result is that for 
+each spectrum of an object, the combined sky spectrum is scaled by a certain 
+factor, and then this scaled sky spectrum is subtracted from the object 
+spectrum. Resulting spectra are saved in ./name/sub.
+
+In order to fine tune the sky subtraction, use the modify_sky.py script. 
+Arguments are the path the base directory, the name of the galaxy, the number 
+of the spectrum in question, the operation to preformed, and the amount to 
+change the scaling by. For example /modify_sky.py ./n3 ngc3169 15 + 0.5 means 
+to increase the scaling factor for the sky subtracted from spectrum 15 of 
+ngc3169 from night three by 0.5. Available operations are limited to + and -. 
+Make modifications to the sky subtraction of each spectrum in this manner until 
+satisfied.
+
+This step will also take care of running setairmass. You do not need to worry 
+about it, unless you want something else than the setairmass function from the 
+kpnoslit package.
+
+Final Step: reduce.py calibrate
+
+In order to preform flux calibration for each spectra, you need to generate 
+sensitivity spectra using standard and sensfunc. Do this in the normal manner, 
+making sure that the sensitivity spectrum for each calibration star is saved as 
+./name/sens.fits. Running reduce.py calibrate now will use calibrate to produce 
+flux calibrated spectra for all H II region spectra, saving the results to 
+./name/cal. This is as far as reduce.py can take the data, and line 
+measurements can now be made.
+
+Extra Step: reduce.py analyze
+
+Reduce.py has one more command available, analyze. This command produces LaTeX 
+formatted tables and some graphs of data. Data about your galaxies are taken 
+from splot logs of line measurements, which must be saved under 
+./name/measurements. Data to about HII regions in other galaxies, for 
+comparison purposes, must be stored under ./other_data. The other data needs to 
+be a file describing the galaxies themselves, ./other_data/key.txt, and any 
+number of files containing the actual measurements, which can be any filename 
+under ./other_data starting with 'table'.
+
+The key file consists of multiple lines of tab separated values, which should 
+be the NGC designation of the galaxy (number only), the distance to the galaxy 
+in megaparsecs, the isophotal radius in arcminutes, the Hubble type, bar 
+classification, ring classification, and environmental status. The first line 
+of the file is always discarded, use this for a header line. For example:
+
+ngc	D (mpc)	r_0	type	bar	ring	env
+925	9.4	5.48	Sd	AB	s	group
+2541	10.6	3.31	Scd	A	s	group
+
+In the table files, whitespace only lines are skipped. A block of data begins 
+with a line that consists of an asterisk followed by the NGC number of the 
+galaxy that the measurements are from. Subsequent lines should be tab separated 
+data: the radius of the HII region as the real radius divided by the isophotal 
+radius, the H beta flux in units of 10^-16 ergs cm^-2 s^-1, the OII 
+flux divided by the H beta flux, and the OIII flux divided by the H beta flux. 
+Each line describes a new HII region from the galaxy. A new galaxy begins when 
+another line beginning with an asterisk is found. For example:
+
+*925
+0.65	247.3	2.75	2.85
+.6	191.2	3.6	3.32
+
+*2541
+.52	5.7	2.34	6.78
+.26	60.3	3.64	3.83
+
+The ordering and units in both of these files are due to the source of data I 
+used: Zaritsky, Kennicutt, and Huchra (1994).
+
+Once these data are set up, run reduce.py analyze. Output is saved under tables 
+and consists of encapsulated postscript graphs, and \LaTex formatted tables.

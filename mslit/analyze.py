@@ -22,6 +22,7 @@ other calculations: calculate_radial_distance, calculate_sfr
 from __future__ import with_statement
 import math
 import os
+import os.path
 import coords
 import numpy
 import scipy.optimize
@@ -37,16 +38,18 @@ from .tables import make_group_comparison_table
 def analyze():
     """Run the complete set of data analyzations and output tables and
        graphs."""
+    if not os.path.isdir('tables'):
+        os.mkdir('tables')
     groups = get_groups()
     galaxies = []
     for group in groups:
         data = get(group['galaxy'], 'key')
         galaxies.append(GalaxyClass(group['galaxy'], data))
-    other_data = get_other()
     for galaxy in galaxies:
         galaxy.run()
         galaxy.fit_OH()
         galaxy.output()
+    other_data = get_other()
     for galaxy in other_data:
         galaxy.fit_OH()
     compare_basic(galaxies, other_data)
@@ -270,10 +273,12 @@ def process_galaxies(fn, galaxydict):
     current = None
     number = None
     for line in raw:
-        if line[0] == '*':
+        if line == '':
+            pass
+        elif line[0] == '*':
             current = galaxydict[line[1:]]
             number = 0
-        elif line != '':
+        else:
             (r, hbeta, r2, r3) = [float(item) for item in line.split('\t')]
             data = {'hbeta': hbeta, 'OII': r2 * hbeta, 'OIII1': r3 * hbeta}
             region = RegionClass(number, data)
@@ -289,19 +294,19 @@ def parse_keyfile():
     """Return a dictionary of the galaxies described in other_data/key.txt."""
     with open('other_data/key.txt') as f:
         raw = f.readlines()
+    del raw[0]
     galaxydict = {}
     for line in raw:
         line = line.strip()
-        if line != 'ngc	D (mpc)	r_0	type	bar	ring	env': # header
-            (ngc, distance, r_0, htype, bar, ring, env) = line.split('\t')
-            # convert distance to kpc from Mpc for consistency
-            distance = float(distance) * 1000
-            # convert r_0 from arcminutes to kpc
-            r_0 = distance * math.tan(math.radians(float(r_0) * 60))
-            data = {'distance': distance, 'r25': r_0, 'type': htype,
-                    'bar': bar, 'ring': ring, 'env': env,
-                    'name': 'NGC %s' % ngc}
-            galaxydict.update({ngc: GalaxyClass(ngc, data)})
+        (ngc, distance, r_0, htype, bar, ring, env) = line.split('\t')
+        # convert distance to kpc from Mpc for consistency
+        distance = float(distance) * 1000
+        # convert r_0 from arcminutes to kpc
+        r_0 = distance * math.tan(math.radians(float(r_0) * 60))
+        data = {'distance': distance, 'r25': r_0, 'type': htype,
+                'bar': bar, 'ring': ring, 'env': env,
+                'name': 'NGC %s' % ngc}
+        galaxydict.update({ngc: GalaxyClass(ngc, data)})
     return galaxydict
 
 

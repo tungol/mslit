@@ -30,7 +30,7 @@ def main(command, path, name):
     os.chdir(path)
     if command == 'zeroflat':
         zero_flats()
-    if command == 'analyze':
+    elif command == 'analyze':
         analyze()
     elif name == 'all':
         groups = get_groups()
@@ -63,7 +63,7 @@ analyze: produce graphs and tables of measured data""")
                         choices=['zeroflat', 'init', 'extract', 'disp', 'sky',
                                  'calibrate', 'analyze'])
     parser.add_argument('path', help="path to the set of files")
-    parser.add_argument('--name', default="all",
+    parser.add_argument('-n', '--name', default="all",
                         help="name of the galaxy or star to act on (default: "
                              "%(default)s)")
     args = vars(parser.parse_args())
