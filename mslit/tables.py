@@ -133,12 +133,12 @@ def make_multitable(galaxies, keys, values, titles, command):
        command: this is passed through to the make_table function."""
     string = ['\\begin{tabular}{ *{%s}{c}}\n' % (len(keys) + 1)]
     for title in titles:
-        v = dict([(header, {}) for header in GROUPS[title]])
-        for header, group in GROUPS[title].items():
+        v = dict([(group['name'], {}) for group in GROUPS[title]])
+        for group in GROUPS[title]:
             for item in ('grad', 'metal'):
                 items = [g.__dict__[item] for g in galaxies
-                          if g.__dict__[title] in group]
-                v[header].update({item: items})
+                          if g.__dict__[title] in group['members']]
+                v[group['name']].update({item: items})
         string += make_table((v,), keys, values, titles[title], command, True)
     string.append('\\end{tabular}\n')
     return ''.join(string)

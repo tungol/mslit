@@ -138,13 +138,9 @@ def compare(galaxies, other, groups, key):
     axes.text(1.505, 8.665, r'$Z_\odot$')
     # plot the data
     galaxies += other
-    galaxy_sets = []
-    for group in groups.values():
-        galaxy_set = []
-        for galaxy in galaxies:
-            if galaxy.__dict__[key] in group:
-                galaxy_set.append(galaxy)
-        galaxy_sets.append(galaxy_set)
+    galaxy_sets = [[galaxy for galaxy in galaxies
+                    if galaxy.__dict__[key] in group['members']]
+                   for group in groups]
     plot(galaxy_sets, axes, colors, 'rdistance', 'OH')
     axes.set_xbound(lower=0, upper=1.5)
     axes.set_ybound(lower=8.0, upper=9.7)
