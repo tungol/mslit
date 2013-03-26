@@ -2,7 +2,7 @@ mslit and reduce.py
 ===================
 
 This is software designed to streamline the process of reduction of multiple
-split spectroscopic images. The images are of the type described in _Multi-slits
+slit spectroscopic images. The images are of the type described in _Multi-slits
 at Kitt Peak: A Manual for Designing and Using Entrance Masks for 
 Low/Moderate-Resolution Spectroscopy_ by De Veny et al., published 1996 by Kitt
 Peak National Observatory.
